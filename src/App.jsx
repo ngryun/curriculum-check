@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { SURVEY_TEMPLATE_COPY_URL } from "./config.js";
+import { buildStudentPageHtml, buildAppsScriptCode, buildSurveyConfigCode } from "./survey/appsScript.js";
 
 function makeIcon(char) {
   return function Icon({ size = 14, color, style, ...rest }) {
@@ -4864,765 +4866,6 @@ function qrSvgPath(qr) {
   }
   return parts.join("");
 }
-// ---------- 학생 기초조사: 학생 휴대폰 화면 (구글 Apps Script 웹 앱으로 배포) ----------
-// 이 화면의 HTML은 선생님이 복사해 가는 설치 코드 안에 그대로 들어가고, 이 프로그램의 '학생 화면 미리보기'에도 쓰입니다.
-// 학생 휴대폰(카카오톡·네이버 앱 안의 브라우저 포함)에서도 돌아가도록 오래된 문법(ES2015)만 씁니다.
-const STUDENT_PAGE_CSS = String.raw`
-*{box-sizing:border-box}
-html,body{margin:0;padding:0;background:#F6F4EF;color:#1C2333;font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%}
-#app{max-width:560px;margin:0 auto;padding:14px 14px 90px}
-.pv{background:#1C2333;color:#fff;font-size:13px;text-align:center;padding:6px 10px;border-radius:8px;margin-bottom:10px}
-h1{font-size:21px;margin:6px 0 4px;line-height:1.35}
-.sub{color:#6B7280;font-size:14px;margin-bottom:12px}
-.card{background:#fff;border:1px solid #DDD8CC;border-radius:14px;padding:14px;margin-bottom:12px}
-.card h2{font-size:17px;margin:0 0 10px}
-.card h2 small{font-weight:400;color:#6B7280;font-size:14px}
-.note{background:#EAF0F6;color:#2C5A8A;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:12px;white-space:pre-wrap}
-.warn{background:#F7E9E3;color:#A2452C;border-radius:10px;padding:10px 12px;font-size:14px;margin:10px 0}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
-.pill{border:1.5px solid #DDD8CC;background:#fff;border-radius:10px;padding:11px 0;font-size:16px;font-weight:700;color:#1C2333;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.pill.on{background:#2C5A8A;border-color:#2C5A8A;color:#fff}
-.pill.skip{background:#EEEAE2;border-style:dashed;color:#B8B4A9;text-decoration:line-through;cursor:default}
-input[type=text],textarea{width:100%;font-size:17px;padding:12px;border:1.5px solid #DDD8CC;border-radius:10px;font-family:inherit;background:#fff;color:#1C2333}
-textarea{min-height:84px;resize:vertical;font-size:15px}
-.agree{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:#1C2333;margin-top:10px;cursor:pointer}
-.agree input{width:22px;height:22px;flex-shrink:0;margin:0}
-.privacy{font-size:13.5px;color:#6B7280}
-.btn{display:block;width:100%;border:none;border-radius:12px;padding:15px;font-size:17px;font-weight:800;cursor:pointer;background:#2C5A8A;color:#fff;font-family:inherit}
-.btn.gray{background:#fff;color:#1C2333;border:1.5px solid #DDD8CC}
-.btn:disabled{background:#B8B4A9;color:#fff}
-.row{display:flex;gap:8px}
-.row .btn{flex:1}
-.bar{position:sticky;top:0;z-index:5;background:#F6F4EF;padding:8px 0 10px;margin-bottom:4px}
-.bar .who{font-weight:800;font-size:15px}
-.bar .prog{font-size:13.5px;color:#6B7280}
-.sem h2{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.badge{font-size:12.5px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap;background:#F7E9E3;color:#A2452C}
-.badge.ok{background:#E7F1EA;color:#2F6D4F}
-.away{display:flex;gap:10px;align-items:center;font-size:14px;color:#6B7280;background:#F6F4EF;border-radius:10px;padding:9px 10px;margin-bottom:10px;cursor:pointer}
-.away input{width:20px;height:20px;margin:0;flex-shrink:0}
-.grp{margin-top:12px}
-.grp-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
-.grp-t{font-weight:800;font-size:15.5px}
-.grp-t small{font-weight:400;color:#6B7280;font-size:13.5px}
-.cnt{font-size:14px;font-weight:800;border-radius:999px;padding:2px 10px;background:#F7E9E3;color:#A2452C;white-space:nowrap}
-.cnt.ok{background:#E7F1EA;color:#2F6D4F}
-.opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1.5px solid #DDD8CC;background:#fff;border-radius:10px;padding:11px 12px;margin-bottom:7px;font-size:16px;color:#1C2333;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent}
-.opt .box{width:22px;height:22px;border:2px solid #B8B4A9;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#fff}
-.opt .nm{flex:1}
-.opt .meta{font-size:12.5px;color:#6B7280;white-space:nowrap}
-.opt.on{border-color:#2C5A8A;background:#EAF0F6}
-.opt.on .box{background:#2C5A8A;border-color:#2C5A8A}
-.opt.dim{opacity:.45}
-.sumg{margin:6px 0 10px}
-.sumg b{display:block;font-size:14px;color:#6B7280;font-weight:600}
-.sumg span{font-size:15.5px}
-.done{text-align:center;padding:26px 14px}
-.done .big{font-size:52px;line-height:1;color:#2F6D4F}
-.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);max-width:92%;background:#1C2333;color:#fff;font-size:14.5px;padding:11px 16px;border-radius:12px;z-index:20;box-shadow:0 6px 20px rgba(0,0,0,.25)}
-.err{color:#A2452C;font-size:14.5px;margin:8px 0}
-`;
-const STUDENT_PAGE_JS = String.raw`
-(function () {
-  "use strict";
-  var BOOT = /*__BOOT__*/null;
-  var root = document.getElementById("app");
-  if (!BOOT || !BOOT.survey) { root.textContent = "조사 정보를 불러오지 못했어요. 담임 선생님께 알려 주세요."; return; }
-  var S = BOOT.survey;
-  var STATUS_TEXT = { done: "들은 과목", now: "지금 듣는 과목", next: "신청한 과목" };
-  var st = { step: "info", cls: null, num: null, name: "", agree: false, picks: {}, away: {}, memo: "", sending: false, result: null, error: "" };
-  S.classes.forEach(function (k) { if (k.c === BOOT.ban) st.cls = k.c; });
-
-  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-  function add(parent, child) { parent.appendChild(child); return child; }
-  function norm(s) { return String(s == null ? "" : s).replace(/\s+/g, " ").replace(/^\s+|\s+$/g, ""); }
-  function key(s) { return String(s || "").replace(/[\s·‧•・･ᐧ⋅∙ㆍ]/g, "").toLowerCase(); }
-  function classInfo(c) { for (var i = 0; i < S.classes.length; i++) if (S.classes[i].c === c) return S.classes[i]; return null; }
-  function nameProblem(n) {
-    if (!n) return "이름을 적어 주세요.";
-    if (n.length > 20) return "이름은 20자까지만 적을 수 있어요.";
-    if (/[0-9]/.test(n)) return "번호는 빼고 이름만 적어 주세요.";
-    if (/^[=+\-@'"]/.test(n) || /[<>\u0000-\u001f\u007f]/.test(n)) return "이름에 쓸 수 없는 글자가 있어요.";
-    return "";
-  }
-  var toastTimer = null;
-  function toast(msg) {
-    var old = document.getElementById("toast");
-    if (old) old.parentNode.removeChild(old);
-    var t = el("div", "toast", msg);
-    t.id = "toast";
-    document.body.appendChild(t);
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 2600);
-  }
-  function go(step) { st.step = step; render(); try { window.scrollTo(0, 0); } catch (e) {} }
-  function header(parent) {
-    if (BOOT.preview) add(parent, el("div", "pv", "미리보기 화면입니다 — 여기서 누르는 [제출하기]는 실제로 제출되지 않아요."));
-    add(parent, el("h1", null, S.title));
-    add(parent, el("div", "sub", S.grade + "학년 학생이 직접 적는 선택과목 조사예요."));
-  }
-
-  // ---- selections ----
-  function picked(gid) { return st.picks[gid] || []; }
-  function activeSems() { return S.semesters.filter(function (s) { return !st.away[s.code]; }); }
-  function semPicks(sem) {
-    var out = [];
-    sem.groups.forEach(function (g) { picked(g.id).forEach(function (n) { out.push({ name: n, gid: g.id }); }); });
-    return out;
-  }
-  function blockReason(sem, g, name) {
-    var mine = picked(g.id), i, j;
-    if (mine.indexOf(name) >= 0) return "";
-    var list = semPicks(sem);
-    for (i = 0; i < list.length; i++) if (key(list[i].name) === key(name)) return "같은 학기의 다른 묶음에서 이미 골랐어요.";
-    for (i = 0; i < S.semesters.length; i++) {
-      var o = S.semesters[i];
-      if (o.code === sem.code || o.code.charAt(0) !== sem.code.charAt(0) || st.away[o.code]) continue;
-      var ol = semPicks(o);
-      for (j = 0; j < ol.length; j++) if (key(ol[j].name) === key(name)) return o.label + "에 이미 골랐어요. 같은 과목은 한 번만 들을 수 있어요.";
-    }
-    if (g.n != null && mine.length >= g.n) return "full";
-    return "";
-  }
-  function groupDone(g) { return g.n == null || picked(g.id).length === g.n; }
-  function semDone(sem) { return !!st.away[sem.code] || sem.groups.every(groupDone); }
-  function problems() {
-    var out = [];
-    if (activeSems().length === 0) out.push({ text: "모든 학기를 '다른 학교'로 표시할 수는 없어요." });
-    S.semesters.forEach(function (sem) {
-      if (st.away[sem.code]) return;
-      sem.groups.forEach(function (g) {
-        if (!groupDone(g)) out.push({ gid: g.id, text: sem.label + " " + g.label + ": " + g.n + "개 중 " + picked(g.id).length + "개 골랐어요." });
-      });
-    });
-    return out;
-  }
-
-  // ---- step 1: 반 · 번호 · 이름 ----
-  function renderInfo() {
-    header(root);
-    if (S.deadline) add(root, el("div", "note", "마감: " + S.deadline));
-    if (S.notice) add(root, el("div", "note", S.notice));
-
-    var c1 = add(root, el("div", "card"));
-    add(c1, el("h2", null, "① 우리 반을 눌러 주세요"));
-    var g1 = add(c1, el("div", "grid"));
-    var c2 = add(root, el("div", "card"));
-    var c3 = add(root, el("div", "card"));
-    function drawNumbers() {
-      while (c2.firstChild) c2.removeChild(c2.firstChild);
-      add(c2, el("h2", null, "② 내 번호를 눌러 주세요"));
-      var info = classInfo(st.cls);
-      if (!info) { add(c2, el("div", "sub", "먼저 위에서 반을 골라 주세요.")); return; }
-      var skips = info.skip || [];
-      if (st.num != null && (st.num > info.size || skips.indexOf(st.num) >= 0)) st.num = null;
-      if (skips.length) add(c2, el("div", "sub", "흐리게 보이는 번호는 결번이라 누를 수 없어요."));
-      var g2 = add(c2, el("div", "grid"));
-      for (var n = 1; n <= info.size; n++) (function (n) {
-        if (skips.indexOf(n) >= 0) {
-          var s = add(g2, el("button", "pill skip", n + "번"));
-          s.type = "button";
-          s.disabled = true;
-          return;
-        }
-        var b = add(g2, el("button", "pill" + (st.num === n ? " on" : ""), n + "번"));
-        b.type = "button";
-        b.onclick = function () { st.num = n; drawNumbers(); };
-      })(n);
-    }
-    S.classes.forEach(function (k) {
-      var b = add(g1, el("button", "pill" + (st.cls === k.c ? " on" : ""), k.c + "반"));
-      b.type = "button";
-      b.onclick = function () {
-        st.cls = k.c;
-        Array.prototype.forEach.call(g1.children, function (x) { x.className = "pill"; });
-        b.className = "pill on";
-        drawNumbers();
-      };
-    });
-    drawNumbers();
-
-    add(c3, el("h2", null, "③ 이름을 적어 주세요"));
-    var inp = add(c3, el("input"));
-    inp.type = "text";
-    inp.value = st.name;
-    inp.placeholder = "예: 홍길동";
-    inp.setAttribute("autocomplete", "off");
-    inp.oninput = function () { st.name = inp.value; };
-
-    var c4 = add(root, el("div", "card"));
-    add(c4, el("h2", null, "개인정보 안내"));
-    add(c4, el("div", "privacy", "적은 반·번호·이름과 고른 과목은 졸업에 필요한 학점을 채웠는지 확인하는 데에만 쓰고, 확인이 끝나면 지웁니다. 다른 친구의 번호나 이름으로 내지 마세요."));
-    var lab = add(c4, el("label", "agree"));
-    var cb = add(lab, el("input"));
-    cb.type = "checkbox";
-    cb.checked = st.agree;
-    cb.onchange = function () { st.agree = cb.checked; };
-    add(lab, el("span", null, "안내를 읽었어요."));
-
-    var err = add(root, el("div", "err"));
-    var next = add(root, el("button", "btn", "다음: 과목 고르기"));
-    next.type = "button";
-    next.onclick = function () {
-      st.name = norm(inp.value);
-      var msg = !st.cls ? "반을 골라 주세요." : !st.num ? "번호를 골라 주세요." : nameProblem(st.name) || (!st.agree ? "개인정보 안내를 읽고 체크해 주세요." : "");
-      err.textContent = msg;
-      if (msg) { toast(msg); return; }
-      go("pick");
-    };
-  }
-
-  // ---- step 2: 학기별 과목 고르기 ----
-  function renderPick() {
-    header(root);
-    var bar = add(root, el("div", "bar"));
-    add(bar, el("div", "who", S.grade + "학년 " + st.cls + "반 " + st.num + "번 " + st.name));
-    var prog = add(bar, el("div", "prog"));
-    var views = [];
-
-    S.semesters.forEach(function (sem) {
-      var card = add(root, el("div", "card sem"));
-      var h2 = add(card, el("h2"));
-      var ttl = add(h2, el("span", null, sem.label + " "));
-      add(ttl, el("small", null, STATUS_TEXT[sem.status] || ""));
-      var badge = add(h2, el("span", "badge"));
-      var lab = add(card, el("label", "away"));
-      var cb = add(lab, el("input"));
-      cb.type = "checkbox";
-      cb.checked = !!st.away[sem.code];
-      add(lab, el("span", null, "이 학기에는 다른 학교에 다녔어요 (전학 온 학생만 체크)"));
-      var body = add(card, el("div"));
-      var awayNote = add(card, el("div", "sub", "이 학기는 고르지 않아도 돼요. 전에 다닌 학교의 과목은 담임 선생님이 따로 확인해요."));
-      cb.onchange = function () { st.away[sem.code] = cb.checked; refresh(); };
-      sem.groups.forEach(function (g) {
-        var box = add(body, el("div", "grp"));
-        box.id = "g-" + g.id;
-        var gh = add(box, el("div", "grp-h"));
-        var gt = add(gh, el("div", "grp-t", g.label + " "));
-        add(gt, el("small", null, g.n != null ? g.n + "개 고르기" : "들은 과목을 모두 고르기"));
-        var cnt = add(gh, el("span", "cnt"));
-        var opts = [];
-        g.options.forEach(function (o) {
-          var b = add(box, el("button", "opt"));
-          b.type = "button";
-          add(b, el("span", "box"));
-          add(b, el("span", "nm", o.name));
-          add(b, el("span", "meta", (o.group ? o.group + " · " : "") + o.credit + "학점"));
-          b.onclick = function () {
-            var list = picked(g.id).slice();
-            var at = list.indexOf(o.name);
-            if (at >= 0) list.splice(at, 1);
-            else {
-              var why = blockReason(sem, g, o.name);
-              if (why === "full") { toast(g.n + "개까지만 고를 수 있어요. 바꾸려면 고른 과목을 먼저 눌러서 빼 주세요."); return; }
-              if (why) { toast(o.name + " — " + why); return; }
-              list.push(o.name);
-            }
-            st.picks[g.id] = list;
-            refresh();
-          };
-          opts.push({ node: b, name: o.name });
-        });
-        views.push({ sem: sem, g: g, cnt: cnt, opts: opts });
-      });
-      views.push({ sem: sem, badge: badge, body: body, awayNote: awayNote });
-    });
-
-    var err = add(root, el("div", "err"));
-    var row = add(root, el("div", "row"));
-    var back = add(row, el("button", "btn gray", "이전"));
-    back.type = "button";
-    back.onclick = function () { go("info"); };
-    var next = add(row, el("button", "btn", "다음: 확인하기"));
-    next.type = "button";
-    next.onclick = function () {
-      var ps = problems();
-      if (ps.length) {
-        err.textContent = ps.map(function (p) { return "· " + p.text; }).join("\n");
-        err.style.whiteSpace = "pre-wrap";
-        toast("아직 다 고르지 않은 곳이 있어요.");
-        var first = ps[0].gid && document.getElementById("g-" + ps[0].gid);
-        if (first && first.scrollIntoView) first.scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
-      }
-      go("confirm");
-    };
-
-    function refresh() {
-      var doneCount = 0;
-      views.forEach(function (v) {
-        if (v.badge) {
-          var ok = semDone(v.sem);
-          if (ok) doneCount++;
-          v.badge.className = "badge" + (ok ? " ok" : "");
-          v.badge.textContent = st.away[v.sem.code] ? "다른 학교" : ok ? "다 골랐어요" : "고르는 중";
-          v.body.style.display = st.away[v.sem.code] ? "none" : "";
-          v.awayNote.style.display = st.away[v.sem.code] ? "" : "none";
-          return;
-        }
-        var mine = picked(v.g.id);
-        v.cnt.textContent = mine.length + (v.g.n != null ? " / " + v.g.n : "개");
-        v.cnt.className = "cnt" + (groupDone(v.g) ? " ok" : "");
-        v.opts.forEach(function (o) {
-          var on = mine.indexOf(o.name) >= 0;
-          o.node.className = "opt" + (on ? " on" : !on && blockReason(v.sem, v.g, o.name) ? " dim" : "");
-          o.node.firstChild.textContent = on ? "✓" : "";
-        });
-      });
-      prog.textContent = "다 고른 학기 " + doneCount + " / " + S.semesters.length;
-      if (!problems().length) err.textContent = "";
-    }
-    refresh();
-  }
-
-  // ---- step 3: 확인 · 제출 ----
-  function payload() {
-    var picks = [];
-    S.semesters.forEach(function (sem) {
-      if (st.away[sem.code]) return;
-      sem.groups.forEach(function (g) { picks.push({ gid: g.id, names: picked(g.id).slice() }); });
-    });
-    return {
-      v: 1, sid: S.id, grade: S.grade, cls: st.cls, num: st.num, name: st.name, agree: st.agree,
-      away: S.semesters.filter(function (s) { return st.away[s.code]; }).map(function (s) { return s.code; }),
-      picks: picks, memo: norm(st.memo).slice(0, 300)
-    };
-  }
-  function summary(parent) {
-    S.semesters.forEach(function (sem) {
-      var c = add(parent, el("div", "card"));
-      add(c, el("h2", null, sem.label));
-      if (st.away[sem.code]) { add(c, el("div", "sub", "다른 학교에 다녔어요")); return; }
-      sem.groups.forEach(function (g) {
-        var d = add(c, el("div", "sumg"));
-        add(d, el("b", null, g.label));
-        add(d, el("span", null, picked(g.id).join(", ") || "(고른 과목 없음)"));
-      });
-    });
-  }
-  function renderConfirm() {
-    header(root);
-    var who = add(root, el("div", "card"));
-    add(who, el("h2", null, "마지막으로 확인해 주세요"));
-    add(who, el("div", null, S.grade + "학년 " + st.cls + "반 " + st.num + "번 " + st.name));
-    summary(root);
-    var m = add(root, el("div", "card"));
-    add(m, el("h2", null, "선생님께 남길 말 "));
-    m.firstChild.appendChild(el("small", null, "(없으면 비워 두세요)"));
-    var ta = add(m, el("textarea"));
-    ta.maxLength = 300;
-    ta.value = st.memo;
-    ta.placeholder = "예: 2학년 1학기에 과목을 바꿨어요.";
-    ta.oninput = function () { st.memo = ta.value; };
-    var err = add(root, el("div", "warn"));
-    err.style.display = "none";
-    var row = add(root, el("div", "row"));
-    var back = add(row, el("button", "btn gray", "고치기"));
-    back.type = "button";
-    back.onclick = function () { if (!st.sending) go("pick"); };
-    var send = add(row, el("button", "btn", "제출하기"));
-    send.type = "button";
-    send.onclick = function () {
-      if (st.sending) return;
-      st.sending = true;
-      send.disabled = true;
-      back.disabled = true;
-      send.textContent = "보내는 중…";
-      err.style.display = "none";
-      var p = payload();
-      function ok(res) {
-        st.sending = false;
-        if (!res || !res.ok) { fail({ message: (res && res.message) || "알 수 없는 오류" }); return; }
-        st.result = res;
-        go("done");
-      }
-      function fail(e) {
-        st.sending = false;
-        send.disabled = false;
-        back.disabled = false;
-        send.textContent = "제출하기";
-        var msg = String((e && e.message) || e || "").replace(/^(Error|Exception|오류):\s*/i, "");
-        err.textContent = "제출하지 못했어요. " + msg + " (고른 내용은 그대로 있으니 잠시 뒤 [제출하기]를 다시 눌러 주세요.)";
-        err.style.display = "";
-      }
-      if (typeof google !== "undefined" && google.script && google.script.run) {
-        google.script.run.withSuccessHandler(ok).withFailureHandler(fail).submitSurvey(p);
-      } else {
-        window.__lastPayload = p;
-        setTimeout(function () { ok({ ok: true, no: 0, at: "미리보기", preview: true }); }, 300);
-      }
-    };
-  }
-
-  function renderDone() {
-    header(root);
-    var c = add(root, el("div", "card done"));
-    add(c, el("div", "big", "✓"));
-    add(c, el("h2", null, st.result && st.result.preview ? "미리보기: 여기까지가 학생 화면이에요" : "제출되었어요. 고마워요!"));
-    if (st.result && !st.result.preview) add(c, el("div", "sub", "제출 번호 " + st.result.no + " · " + st.result.at));
-    add(c, el("div", "sub", S.grade + "학년 " + st.cls + "반 " + st.num + "번 " + st.name));
-    summary(root);
-    add(root, el("div", "note", "잘못 냈다면 아래 버튼으로 처음부터 다시 내면 돼요. 마지막에 낸 내용으로 확인해요."));
-    var again = add(root, el("button", "btn gray", "처음부터 다시 하기"));
-    again.type = "button";
-    again.onclick = function () {
-      var cls = st.cls;
-      st = { step: "info", cls: cls, num: null, name: "", agree: false, picks: {}, away: {}, memo: "", sending: false, result: null, error: "" };
-      go("info");
-    };
-  }
-
-  function renderClosed() {
-    header(root);
-    var c = add(root, el("div", "card done"));
-    add(c, el("h2", null, "조사가 마감되었어요"));
-    add(c, el("div", "sub", "더 이상 제출할 수 없어요. 고칠 내용이 있으면 담임 선생님께 말씀드려 주세요."));
-  }
-
-  function render() {
-    while (root.firstChild) root.removeChild(root.firstChild);
-    if (BOOT.closed) return renderClosed();
-    if (st.step === "pick") return renderPick();
-    if (st.step === "confirm") return renderConfirm();
-    if (st.step === "done") return renderDone();
-    return renderInfo();
-  }
-  render();
-})();
-`;
-// the page with the boot token still in place — the Apps Script code fills it in on the server (doGet)
-function buildStudentPageTemplate(title) {
-  return (
-    '<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
-    "<title>" +
-    escapeHtmlText(title || "기초조사") +
-    "</title><style>" +
-    STUDENT_PAGE_CSS +
-    "</style></head>" +
-    '<body><div id="app"></div><scr' +
-    "ipt>" +
-    STUDENT_PAGE_JS +
-    "</scr" +
-    "ipt></body></html>"
-  );
-}
-// the same page with its data filled in (used by the preview in this program)
-function buildStudentPageHtml(boot) {
-  const json = JSON.stringify(boot)
-    .replace(/</g, "\\u003c")
-    .replace(/[\u2028\u2029]/g, " ");
-  return buildStudentPageTemplate(boot && boot.survey ? boot.survey.title : "").replace(SURVEY_BOOT_TOKEN, () => json);
-}
-const SURVEY_BOOT_TOKEN = "/*__BOOT__*/null";
-function escapeHtmlText(s) {
-  return String(s == null ? "" : s).replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[c],
-  );
-}
-// ---------- 학생 기초조사: 구글 시트에 붙여넣는 Apps Script 코드 ----------
-// 선생님이 [설치 코드 복사]로 가져가는 코드입니다. 조사 설정(SURVEY)과 학생 화면(PAGE_HTML)은 만들 때 앞에 붙습니다.
-// setup이 파일의 첫 함수여야 Apps Script 편집기의 함수 선택 칸에 처음부터 setup이 골라져 있습니다.
-const SURVEY_SERVER_CODE = String.raw`
-var SHEET_SETTINGS = "설정";
-var SHEET_STATUS = "제출현황";
-var SHEET_LOG = "제출기록";
-var SHEET_PICKS = "선택과목";
-var LOG_HEADER = ["제출번호", "제출시각", "학년", "반", "번호", "이름", "다른 학교에 다닌 학기", "남긴 말", "고른 과목"];
-var PICK_HEADER = ["제출번호", "제출시각", "학년", "반", "번호", "이름", "학기", "선택그룹", "과목"];
-var AWAY_MARK = "(다른 학교에 다님)";
-var META_LABEL = "조사 정보(수정하지 마세요)";
-
-// ① 붙여넣고 저장한 뒤 이 함수를 한 번 실행하세요. 시트 아래에 설정·제출현황·제출기록·선택과목 탭이 생깁니다.
-function setup() {
-  var ss = book_();
-  prepare_(ss, true);
-  SpreadsheetApp.flush();
-  Logger.log("준비 완료: 시트 아래쪽에 설정 · 제출현황 · 제출기록 · 선택과목 탭이 생겼습니다. 이제 [배포 → 새 배포]로 웹 앱을 만드세요.");
-}
-
-// 학생이 QR 코드로 들어오면 실행됩니다 (?ban=3 이면 3반이 미리 골라져 있음).
-function doGet(e) {
-  var ss = book_();
-  // 코드를 새로 붙여넣은 직후 여러 학생이 동시에 열어도 시트를 한 번만 고치도록 잠급니다
-  if (needsPrepare_(ss)) {
-    var lock = LockService.getScriptLock();
-    if (lock.tryLock(20000)) {
-      try {
-        prepare_(ss, false);
-      } finally {
-        lock.releaseLock();
-      }
-    }
-  }
-  var p = (e && e.parameter) || {};
-  var ban = parseInt(p.ban, 10);
-  var boot = { survey: SURVEY, ban: classOf_(ban) ? ban : null, closed: closed_(ss) };
-  var json = JSON.stringify(boot).replace(/</g, "\\u003c");
-  var html = PAGE_HTML.replace("/*__BOOT__*/null", function () { return json; });
-  return HtmlService.createHtmlOutput(html)
-    .setTitle(SURVEY.title)
-    .addMetaTag("viewport", "width=device-width, initial-scale=1");
-}
-
-// 학생 화면의 [제출하기]가 부릅니다. 받은 내용을 조사 설정과 다시 대조한 뒤에만 시트에 적습니다.
-function submitSurvey(p) {
-  var v = validate_(p);
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(25000)) fail_("지금 제출하는 친구들이 많아요. 10초쯤 뒤에 다시 눌러 주세요.");
-  try {
-    var ss = book_();
-    prepare_(ss, false);
-    if (closed_(ss)) fail_("조사가 마감되어 제출할 수 없어요.");
-    var log = ss.getSheetByName(SHEET_LOG);
-    var picks = ss.getSheetByName(SHEET_PICKS);
-    var no = nextNo_(log);
-    var at = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm:ss");
-    var base = [no, at, SURVEY.grade, v.cls, v.num, safe_(v.name)];
-
-    var logRow = log.getLastRow() + 1;
-    ensureRows_(log, logRow);
-    log.getRange(logRow, 2, 1, 1).setNumberFormat("@");
-    log.getRange(logRow, 6, 1, 4).setNumberFormat("@");
-    log.getRange(logRow, 1, 1, 9).setValues([base.concat([v.awayLabels, safe_(v.memo), safe_(v.summary)])]);
-
-    var out = v.rows.map(function (r) { return base.concat([r.semLabel, safe_(r.group), safe_(r.subject)]); });
-    if (out.length > 0) {
-      var start = picks.getLastRow() + 1;
-      ensureRows_(picks, start + out.length - 1);
-      picks.getRange(start, 2, out.length, 1).setNumberFormat("@");
-      picks.getRange(start, 6, out.length, 4).setNumberFormat("@");
-      picks.getRange(start, 1, out.length, 9).setValues(out);
-    }
-    SpreadsheetApp.flush();
-    return { ok: true, no: no, at: at };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function book_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) fail_("이 코드는 구글 시트의 [확장 프로그램 → Apps Script]에 붙여넣어야 합니다.");
-  return ss;
-}
-
-function fail_(msg) {
-  throw new Error(msg);
-}
-
-function needsPrepare_(ss) {
-  var settings = ss.getSheetByName(SHEET_SETTINGS);
-  if (!settings || !ss.getSheetByName(SHEET_LOG) || !ss.getSheetByName(SHEET_PICKS) || !ss.getSheetByName(SHEET_STATUS)) return true;
-  return String(settings.getRange("B5").getValue()) !== SURVEY.fp;
-}
-
-function prepare_(ss, force) {
-  var settings = ss.getSheetByName(SHEET_SETTINGS);
-  var fresh = !settings;
-  if (!settings) settings = ss.insertSheet(SHEET_SETTINGS);
-  ensureHeader_(ss, SHEET_LOG, LOG_HEADER);
-  ensureHeader_(ss, SHEET_PICKS, PICK_HEADER);
-  var current = fresh ? "" : String(settings.getRange("B5").getValue());
-  if (!force && !fresh && current === SURVEY.fp) {
-    if (!ss.getSheetByName(SHEET_STATUS)) buildStatus_(ss);
-    return;
-  }
-  var status = fresh ? "" : String(settings.getRange("B1").getValue());
-  status = status.indexOf("마감") >= 0 ? "마감" : "받는 중";
-  var total = 0;
-  SURVEY.classes.forEach(function (k) { total += k.size - (k.skip || []).length; });
-  var meta = { kind: "graduation-survey", v: 1, id: SURVEY.id, fp: SURVEY.fp, title: SURVEY.title, grade: SURVEY.grade, classes: SURVEY.classes, semesters: SURVEY.semesters.map(function (s) { return s.code; }) };
-  settings.getRange(1, 2, 9, 1).setNumberFormat("@");
-  settings.getRange(1, 1, 9, 2).setValues([
-    ["조사 상태", status],
-    ["조사 이름", safe_(SURVEY.title)],
-    ["대상", SURVEY.grade + "학년 " + SURVEY.classes.length + "개 반 (" + total + "명)"],
-    ["코드를 만든 날", SURVEY.createdAt],
-    ["코드 버전", SURVEY.fp],
-    ["", ""],
-    ["마감하는 법", "B1 칸을 '마감'으로 바꾸면 학생 화면에 '조사가 마감되었어요'가 나오고 더 이상 제출되지 않습니다. 다시 받으려면 '받는 중'으로 바꾸세요."],
-    ["", ""],
-    [META_LABEL, JSON.stringify(meta)]
-  ]);
-  settings.getRange("B1").setDataValidation(
-    SpreadsheetApp.newDataValidation().requireValueInList(["받는 중", "마감"], true).setAllowInvalid(false).build()
-  );
-  settings.getRange(1, 1, 9, 1).setFontWeight("bold");
-  settings.setColumnWidth(1, 170);
-  settings.setColumnWidth(2, 560);
-  buildStatus_(ss);
-}
-
-function ensureHeader_(ss, name, header) {
-  var sh = ss.getSheetByName(name);
-  if (!sh) sh = ss.insertSheet(name);
-  if (sh.getLastRow() === 0) {
-    sh.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight("bold").setBackground("#EAF0F6");
-    sh.setFrozenRows(1);
-  }
-  return sh;
-}
-
-function buildStatus_(ss) {
-  var sh = ss.getSheetByName(SHEET_STATUS);
-  if (!sh) sh = ss.insertSheet(SHEET_STATUS);
-  sh.clear();
-  var students = 0;
-  SURVEY.classes.forEach(function (k) { students += k.size; });
-  ensureRows_(sh, 3 + Math.max(students, SURVEY.classes.length) + 2);
-  sh.getRange(1, 1).setValue("제출 현황 — 학생이 제출할 때마다 자동으로 계산됩니다. 이 시트는 고치지 마세요.");
-  sh.getRange(1, 1).setFontWeight("bold");
-  sh.getRange(3, 1, 1, 4).setValues([["반", "인원", "제출", "미제출"]]).setFontWeight("bold").setBackground("#EAF0F6");
-  sh.getRange(3, 6, 1, 4).setValues([["반", "번호", "제출 횟수", "상태"]]).setFontWeight("bold").setBackground("#EAF0F6");
-  var classRows = [];
-  var studentRows = [];
-  var r = 4;
-  SURVEY.classes.forEach(function (k, i) {
-    var row = 4 + i;
-    var skip = k.skip || [];
-    classRows.push([k.c, k.size - skip.length, '=COUNTIFS(F:F,A' + row + ',I:I,"제출")', "=B" + row + "-C" + row]);
-    for (var n = 1; n <= k.size; n++) {
-      if (skip.indexOf(n) >= 0) studentRows.push([k.c, n, "", "결번"]);
-      else studentRows.push([k.c, n, "=COUNTIFS('" + SHEET_LOG + "'!D:D,F" + r + ",'" + SHEET_LOG + "'!E:E,G" + r + ")", '=IF(H' + r + '>0,"제출","미제출")']);
-      r++;
-    }
-  });
-  if (classRows.length) sh.getRange(4, 1, classRows.length, 4).setValues(classRows);
-  if (studentRows.length) sh.getRange(4, 6, studentRows.length, 4).setValues(studentRows);
-  sh.setFrozenRows(3);
-}
-
-function ensureRows_(sh, lastRowNeeded) {
-  var max = sh.getMaxRows();
-  if (lastRowNeeded > max) sh.insertRowsAfter(max, lastRowNeeded - max + 200);
-}
-
-function closed_(ss) {
-  var sh = ss.getSheetByName(SHEET_SETTINGS);
-  return !!sh && String(sh.getRange("B1").getValue()).indexOf("마감") >= 0;
-}
-
-function classOf_(c) {
-  for (var i = 0; i < SURVEY.classes.length; i++) if (SURVEY.classes[i].c === c) return SURVEY.classes[i];
-  return null;
-}
-
-function nextNo_(sh) {
-  var last = sh.getLastRow();
-  if (last < 2) return 1;
-  var mx = 0;
-  sh.getRange(2, 1, last - 1, 1).getValues().forEach(function (row) {
-    var n = Number(row[0]);
-    if (n > mx) mx = n;
-  });
-  return mx + 1;
-}
-
-// 시트가 수식으로 읽지 않도록 (=, +, -, @ 로 시작하는 글자)
-function safe_(v) {
-  var s = String(v == null ? "" : v);
-  return /^[=+\-@]/.test(s) ? "'" + s : s;
-}
-
-function cleanText_(v, max) {
-  var s = String(v == null ? "" : v);
-  var out = "";
-  for (var i = 0; i < s.length; i++) {
-    var code = s.charCodeAt(i);
-    out += code < 32 || code === 127 ? " " : s.charAt(i);
-  }
-  return out.replace(/\s+/g, " ").trim().slice(0, max);
-}
-
-function key_(s) {
-  return String(s || "").replace(/[\s·‧•・･ᐧ⋅∙ㆍ]/g, "").toLowerCase();
-}
-
-function validate_(p) {
-  if (!p || typeof p !== "object") fail_("보낸 내용이 비어 있어요.");
-  if (p.sid !== SURVEY.id) fail_("조사 화면이 바뀌었어요. 창을 닫고 QR 코드로 다시 들어와 주세요.");
-  if (Number(p.grade) !== SURVEY.grade) fail_("학년 정보가 맞지 않아요. QR 코드로 다시 들어와 주세요.");
-  var k = classOf_(Number(p.cls));
-  if (!k) fail_("반을 다시 골라 주세요.");
-  var num = Number(p.num);
-  if (!(num >= 1 && num <= k.size && Math.floor(num) === num)) fail_("번호를 다시 골라 주세요.");
-  if ((k.skip || []).indexOf(num) >= 0) fail_("결번으로 정해진 번호예요. 내 번호를 다시 확인해 주세요.");
-  var name = cleanText_(p.name, 40);
-  if (!name || name.length > 20 || /[0-9]/.test(name) || /^[=+\-@'"]/.test(name) || /[<>]/.test(name)) fail_("이름을 다시 확인해 주세요.");
-  if (p.agree !== true) fail_("개인정보 안내를 읽고 체크해 주세요.");
-
-  var away = {};
-  (Array.isArray(p.away) ? p.away : []).forEach(function (code) {
-    SURVEY.semesters.forEach(function (s) { if (s.code === code) away[code] = true; });
-  });
-  var byGid = {};
-  (Array.isArray(p.picks) ? p.picks : []).forEach(function (x) {
-    if (x && typeof x.gid === "string") byGid[x.gid] = Array.isArray(x.names) ? x.names : [];
-  });
-
-  var rows = [];
-  var summary = [];
-  var awayLabels = [];
-  var active = 0;
-  var gradeSeen = {};
-  SURVEY.semesters.forEach(function (sem) {
-    if (away[sem.code]) {
-      awayLabels.push(sem.label);
-      rows.push({ semLabel: sem.label, group: "-", subject: AWAY_MARK });
-      return;
-    }
-    active++;
-    var semSeen = {};
-    sem.groups.forEach(function (g) {
-      var allowed = {};
-      g.options.forEach(function (o) { allowed[o.name] = true; });
-      var uniq = [];
-      (byGid[g.id] || []).forEach(function (n) {
-        n = String(n);
-        if (!allowed[n]) fail_(sem.label + " " + g.label + "에 없는 과목이 들어 있어요: " + n);
-        if (uniq.indexOf(n) < 0) uniq.push(n);
-      });
-      if (g.n != null && uniq.length !== g.n) fail_(sem.label + " " + g.label + ": " + g.n + "개를 골라야 해요 (지금 " + uniq.length + "개).");
-      uniq.forEach(function (n) {
-        var kk = key_(n);
-        if (semSeen[kk]) fail_(sem.label + "에 같은 과목을 두 번 골랐어요: " + n);
-        semSeen[kk] = true;
-        var gk = sem.code.charAt(0) + "|" + kk;
-        if (gradeSeen[gk] && gradeSeen[gk] !== sem.code) fail_("같은 과목을 한 학년에 두 번 고를 수 없어요: " + n);
-        gradeSeen[gk] = sem.code;
-        rows.push({ semLabel: sem.label, group: g.label, subject: n });
-      });
-      summary.push(sem.label + " " + g.label + ": " + (uniq.length ? uniq.join(", ") : "없음"));
-    });
-  });
-  if (!active) fail_("모든 학기를 '다른 학교'로 표시할 수는 없어요.");
-  return { cls: k.c, num: num, name: name, awayLabels: awayLabels.join(", "), memo: cleanText_(p.memo, 300), rows: rows, summary: summary.join(" / ") };
-}
-`;
-// 선생님이 붙여넣을 전체 코드 (조사 설정 + 학생 화면 + 위 서버 코드)
-function buildAppsScriptCode(payload) {
-  const NL = String.fromCharCode(10);
-  return [
-    "/** @OnlyCurrentDoc */",
-    "// " + payload.title + " — 졸업이수요건 점검 프로그램이 만든 학생 기초조사 코드",
-    "// 만든 날 " + payload.createdAt + " · 코드 버전 " + payload.fp,
-    "// 사용법: ① 이 코드를 전부 붙여넣고 저장(Ctrl+S) ② 위쪽 함수 선택 칸이 setup인지 확인하고 [실행] → 권한 허용",
-    "//        ③ [배포 → 새 배포 → 웹 앱] 실행: 나 · 액세스 권한: 모든 사용자 → [배포] → 웹 앱 URL을 프로그램에 붙여넣기",
-    "// 이 코드는 이 구글 시트 하나에만 접근하며(@OnlyCurrentDoc), 학생이 낸 내용은 이 시트에만 저장됩니다.",
-    "",
-    "var SURVEY = " + JSON.stringify(payload) + ";",
-    "var PAGE_HTML = " + JSON.stringify(buildStudentPageTemplate(payload.title)) + ";",
-    SURVEY_SERVER_CODE,
-  ].join(NL);
-}
 // ---------- 학생 기초조사: 설정 · 응답 파일 읽기 (pure) ----------
 // 수강신청 파일 형식이 학교마다 달라 인식이 어긋날 때를 위한 두 번째 방법입니다. 학생이 휴대폰으로 자기 반·번호·이름과
 // 학기별로 들은(신청한) 과목을 고르면 선생님의 구글 시트에 쌓이고, 그 시트를 엑셀로 내려받아 여기에 올립니다.
@@ -5703,6 +4946,8 @@ function emptySurveyConfig() {
     deadline: "",
     webAppUrl: "",
     copiedFp: "",
+    installMethod: "",
+    installChecks: {},
   };
 }
 function normalizeSurveyConfig(raw) {
@@ -5734,6 +4979,11 @@ function normalizeSurveyConfig(raw) {
     deadline: str(raw.deadline, 60),
     webAppUrl: str(raw.webAppUrl, 400),
     copiedFp: str(raw.copiedFp, 40),
+    installMethod: ["template", "code"].includes(raw.installMethod) ? raw.installMethod : "",
+    installChecks:
+      raw.installChecks && typeof raw.installChecks === "object"
+        ? Object.fromEntries(Object.keys(raw.installChecks).filter((k) => /^[a-z][0-9]$/.test(k) && raw.installChecks[k] === true).map((k) => [k, true]))
+        : {},
   };
 }
 // 편제표의 학생선택 묶음(택N)으로 학생 화면에 보여줄 조사 내용을 만듭니다.
@@ -13208,12 +12458,136 @@ function QrSvg({ text, size }) {
     </svg>
   );
 }
+// 템플릿 시트 주소(…/edit 등)를 '사본 만들기' 주소로 바꿉니다. 비었거나 구글 시트 주소가 아니면 null
+function templateCopyUrl(raw) {
+  const m = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/.exec(String(raw || "").trim());
+  return m ? `https://docs.google.com/spreadsheets/d/${m[1]}/copy` : null;
+}
+const SURVEY_INSTALL_STEPS = {
+  template: ["t1", "t2", "t3", "t4"],
+  code: ["c1", "c2", "c3", "c4", "c5"],
+};
+function InstallCheckItem({ no, done, onToggle, title, children }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        padding: "10px 12px",
+        borderRadius: 8,
+        border: `1px solid ${done ? OK : LINE}`,
+        background: done ? OK_BG : "#fff",
+        marginBottom: 8,
+      }}
+    >
+      <label style={{ display: "flex", alignItems: "flex-start", paddingTop: 2, cursor: "pointer" }} title="다 했으면 체크">
+        <input type="checkbox" checked={!!done} onChange={onToggle} style={{ width: 16, height: 16, margin: 0 }} />
+      </label>
+      <div style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.65, color: INK }}>
+        <div style={{ fontWeight: 800, marginBottom: 2 }}>
+          {no}. {title}
+          {done && <span style={{ color: OK, fontWeight: 700, marginLeft: 6, fontSize: 12 }}>✓ 완료</span>}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+// 'Google에서 확인하지 않은 앱' 화면을 미리 보여주는 그림 (실제 화면을 단순하게 그린 것)
+function UnverifiedAppGuide() {
+  const screen = {
+    flex: "1 1 190px",
+    minWidth: 190,
+    border: `1px solid ${LINE}`,
+    borderRadius: 8,
+    background: "#fff",
+    padding: "10px 12px",
+    fontSize: 11.5,
+    lineHeight: 1.55,
+    color: "#3C4043",
+  };
+  const mark = {
+    display: "inline-block",
+    border: "2px solid #D93025",
+    borderRadius: 6,
+    padding: "1px 6px",
+    color: "#1A73E8",
+    fontWeight: 700,
+  };
+  const step = { fontSize: 11, fontWeight: 800, color: MUTED, marginBottom: 6 };
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+        <div style={screen}>
+          <div style={step}>① 경고 화면</div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#202124", marginBottom: 4 }}>
+            Google에서 확인하지 않은 앱
+          </div>
+          <div style={{ marginBottom: 10 }}>이 앱은 Google의 확인을 받지 않았습니다…</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+            <span style={mark}>고급</span>
+            <span style={{ fontSize: 10.5, color: MUTED }}>안전한 페이지로 돌아가기</span>
+          </div>
+        </div>
+        <div style={screen}>
+          <div style={step}>② [고급]을 누르면 아래에 생기는 글</div>
+          <div style={{ marginBottom: 8 }}>
+            Google에서 아직 이 앱을 검토하지 않았습니다. 개발자를 신뢰할 수 있는 경우에만 계속하세요.
+          </div>
+          <span style={mark}>(프로젝트 이름)(으)로 이동(안전하지 않음)</span>
+        </div>
+        <div style={screen}>
+          <div style={step}>③ 권한 확인</div>
+          <div style={{ marginBottom: 8 }}>
+            (프로젝트 이름)에서 Google 계정에 액세스하려고 합니다
+            <br />· 이 앱이 적용된 스프레드시트 보기 및 관리 등
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <span style={{ ...mark, background: "#1A73E8", color: "#fff", borderColor: "#D93025" }}>허용</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ fontSize: 12.3, color: MUTED, lineHeight: 1.6, marginTop: 8 }}>
+        ‘확인하지 않은 앱’은 구글 심사를 받지 않았다는 뜻일 뿐, 선생님 계정에서 선생님이 만든(복사한) 코드입니다. 이 코드는{" "}
+        <b style={{ color: INK }}>이 시트 하나에만</b> 접근하고(@OnlyCurrentDoc), 다른 파일·메일·드라이브는 볼 수 없습니다. (이메일 주소 권한은 설정 창을 시트 주인만 열 수 있는지 확인하는 데만 씁니다.)
+        권한 허용은 처음 한 번만 하면 됩니다.
+      </div>
+    </div>
+  );
+}
+function SurveyHelpItem({ title, children }) {
+  return (
+    <details style={{ borderTop: `1px solid ${LINE}`, padding: "8px 0" }}>
+      <summary style={{ cursor: "pointer", fontSize: 12.8, fontWeight: 700, color: INK }}>{title}</summary>
+      <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.65, marginTop: 6 }}>{children}</div>
+    </details>
+  );
+}
 function SurveyInstallStep({ payload, problems, config, setConfig }) {
-  const [copyState, setCopyState] = useState(null);
-  const [showCode, setShowCode] = useState(false);
+  const [copyState, setCopyState] = useState(null); // {what: 'code'|'config', ok}
+  const [showText, setShowText] = useState(null); // 'code' | 'config' | null
   const blocked = problems.errors.length > 0;
+  const copyUrl = templateCopyUrl(SURVEY_TEMPLATE_COPY_URL);
+  const method = copyUrl ? config.installMethod || "template" : "code";
+  const checks = config.installChecks || {};
+  const steps = SURVEY_INSTALL_STEPS[method];
+  const doneCount = steps.filter((id) => checks[id]).length;
   const code = useMemo(() => (blocked ? "" : buildAppsScriptCode(payload)), [payload, blocked]);
+  const configCode = useMemo(() => (blocked ? "" : buildSurveyConfigCode(payload)), [payload, blocked]);
   const stale = !!config.copiedFp && config.copiedFp !== payload.fp;
+  const setMethod = (m) =>
+    setConfig((c) => ({
+      ...c,
+      installMethod: m,
+    }));
+  const toggle = (id) =>
+    setConfig((c) => ({
+      ...c,
+      installChecks: {
+        ...(c.installChecks || {}),
+        [id]: !(c.installChecks || {})[id],
+      },
+    }));
   const markCopied = () =>
     setConfig((c) =>
       c.copiedFp === payload.fp
@@ -13223,11 +12597,11 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
             copiedFp: payload.fp,
           },
     );
-  const doCopy = async () => {
-    const ok = await copyTextToClipboard(code);
-    setCopyState(ok ? "ok" : "fail");
+  const doCopy = async (what) => {
+    const ok = await copyTextToClipboard(what === "code" ? code : configCode);
+    setCopyState({ what, ok });
     if (ok) markCopied();
-    else setShowCode(true);
+    else setShowText(what);
   };
   const doSave = () => {
     downloadBlob(
@@ -13238,9 +12612,64 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
     );
     markCopied();
   };
-  const li = {
-    marginBottom: 5,
-  };
+  const li = { marginBottom: 3 };
+  const copyNote = (what) =>
+    copyState &&
+    copyState.what === what && (
+      <span style={{ fontSize: 12.5, color: copyState.ok ? OK : WARN, fontWeight: copyState.ok ? 700 : 400 }}>
+        {copyState.ok
+          ? `✓ 복사했습니다 (설정 버전 ${payload.fp})`
+          : "자동 복사가 막혀 있습니다. 아래 칸을 클릭해 Ctrl+A, Ctrl+C로 복사하세요."}
+      </span>
+    );
+  const copyConfigButton = (
+    <button
+      disabled={blocked}
+      onClick={() => doCopy("config")}
+      style={buttonStyle(blocked ? "disabled" : "primary", { padding: "7px 13px" })}
+    >
+      📋 설정 코드 복사
+    </button>
+  );
+  const textBox = (what) =>
+    showText === what &&
+    !blocked && (
+      <textarea
+        readOnly={true}
+        value={what === "code" ? code : configCode}
+        onFocus={(e) => e.target.select()}
+        style={{
+          ...inputStyle,
+          width: "100%",
+          height: 120,
+          marginTop: 8,
+          fontFamily: "Menlo, Consolas, monospace",
+          fontSize: 11,
+          whiteSpace: "pre",
+        }}
+      />
+    );
+  const deployText = (
+    <ol style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+      <li style={li}>
+        오른쪽 위 파란 <b>[배포] → [새 배포]</b>
+      </li>
+      <li style={li}>
+        ‘유형 선택’ 옆 톱니바퀴 ⚙ → <b>웹 앱</b>
+      </li>
+      <li style={li}>
+        ‘다음 사용자 인증 정보로 실행’은 <b>나</b>, ‘액세스 권한이 있는 사용자’는 <b>모든 사용자</b> → <b>[배포]</b>
+      </li>
+    </ol>
+  );
+  const authNote = (
+    <details style={{ marginTop: 6 }}>
+      <summary style={{ cursor: "pointer", color: ACCENT, fontWeight: 700, fontSize: 12.5 }}>
+        ‘Google에서 확인하지 않은 앱’ 화면이 나오면? (그림으로 보기)
+      </summary>
+      <UnverifiedAppGuide />
+    </details>
+  );
   return (
     <SurveyStep
       no={4}
@@ -13260,10 +12689,7 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
           }}
         >
           {problems.errors.map((e, i) => (
-            <div key={i}>
-              {"\u26A0 "}
-              {e}
-            </div>
+            <div key={i}>⚠ {e}</div>
           ))}
         </div>
       )}
@@ -13277,169 +12703,177 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
           }}
         >
           {problems.warnings.map((w, i) => (
-            <div key={i}>
-              {"\u00B7 "}
-              {w}
-            </div>
+            <div key={i}>· {w}</div>
           ))}
         </div>
       )}
-      <ol
-        style={{
-          margin: "0 0 12px",
-          paddingLeft: 20,
-          fontSize: 13,
-          lineHeight: 1.65,
-          color: INK,
-        }}
-      >
-        <li style={li}>
-          {"\uAD6C\uAE00 \uB4DC\uB77C\uC774\uBE0C\uC5D0\uC11C "}
-          <b>새 구글 시트</b>를 만들고 이름을 붙입니다. (예: 2025 입학생 기초조사 응답)
-        </li>
-        <li style={li}>
-          {"\uC2DC\uD2B8 \uC704\uCABD \uBA54\uB274\uC5D0\uC11C "}
-          <b>확장 프로그램 → Apps Script</b>를 누릅니다.
-        </li>
-        <li style={li}>
-          {"\uC5F4\uB9B0 \uD3B8\uC9D1\uAE30\uC758 \uAE00(function myFunction\u2026)\uC744 "}
-          <b>모두 지우고</b>
-          {", \uC544\uB798 "}
-          <b>[설치 코드 복사]</b>
-          {"\uB97C \uB204\uB978 \uB4A4 \uBD99\uC5EC\uB123\uACE0 "}
-          <b>저장(Ctrl+S)</b>합니다.
-        </li>
-        <li style={li}>
-          {"\uC704\uCABD \uD568\uC218 \uCE78\uC774 "}
-          <b>setup</b>
-          {"\uC778\uC9C0 \uD655\uC778\uD558\uACE0 "}
-          <b>[실행]</b>
-          {" \u2192 "}
-          <b>권한 검토</b>
-          {
-            " \u2192 \uB0B4 \uACC4\uC815 \uC120\uD0DD \u2192 \u2018Google\uC5D0\uC11C \uD655\uC778\uD558\uC9C0 \uC54A\uC740 \uC571\u2019 \uD654\uBA74\uC774 \uB098\uC624\uBA74 "
-          }
-          <b>고급 → (프로젝트 이름)(으)로 이동</b>
-          {" \u2192 "}
-          <b>허용</b>. 시트 아래에 설정·제출현황·제출기록·선택과목 탭이 생기면 성공입니다.
-        </li>
-        <li style={li}>
-          {"\uC624\uB978\uCABD \uC704 "}
-          <b>배포 → 새 배포</b>
-          {" \u2192 \uD1B1\uB2C8\uBC14\uD034\uC5D0\uC11C "}
-          <b>웹 앱</b>
-          {
-            " \uC120\uD0DD \u2192 \u2018\uB2E4\uC74C \uC0AC\uC6A9\uC790 \uC778\uC99D \uC815\uBCF4\uB85C \uC2E4\uD589\u2019\uC740 "
-          }
-          <b>나</b>
-          {", \u2018\uC561\uC138\uC2A4 \uAD8C\uD55C\uC774 \uC788\uB294 \uC0AC\uC6A9\uC790\u2019\uB294 "}
-          <b>모든 사용자</b>
-          {" \u2192 "}
-          <b>[배포]</b>.
-        </li>
-        <li style={li}>
-          {"\uB098\uC624\uB294 "}
-          <b>웹 앱 URL</b>(https://script.google.com/…/exec)을 복사해 아래 5번 칸에 붙여넣습니다.
-        </li>
-      </ol>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        <button
-          disabled={blocked}
-          onClick={doCopy}
-          style={buttonStyle(blocked ? "disabled" : "primary", {
-            padding: "8px 14px",
-          })}
-        >
-          📋 설치 코드 복사
-        </button>
-        <button
-          disabled={blocked}
-          onClick={doSave}
-          style={buttonStyle(blocked ? "disabled" : "ghost", {
-            padding: "8px 14px",
-          })}
-        >
-          <Download size={13} />
-          {" \uCF54\uB4DC\uB97C \uD30C\uC77C\uB85C \uC800\uC7A5(.txt)"}
-        </button>
-        {!blocked && (
-          <button
-            onClick={() => setShowCode((v) => !v)}
-            style={{
-              ...buttonStyle("ghost"),
-              border: "none",
-              color: MUTED,
-            }}
-          >
-            {showCode ? "코드 숨기기" : "코드 직접 보기"}
-          </button>
-        )}
-        {copyState === "ok" && (
-          <span
-            style={{
-              fontSize: 12.5,
-              color: OK,
-              fontWeight: 700,
-            }}
-          >
-            {"\u2713 \uBCF5\uC0AC\uD588\uC2B5\uB2C8\uB2E4 (\uCF54\uB4DC \uBC84\uC804 "}
-            {payload.fp})
-          </span>
-        )}
-        {copyState === "fail" && (
-          <span
-            style={{
-              fontSize: 12.5,
-              color: WARN,
-            }}
-          >
-            자동 복사가 막혀 있습니다. 아래 칸을 클릭해 Ctrl+A, Ctrl+C로 복사하세요.
-          </span>
-        )}
-      </div>
       {stale && (
         <div
           style={{
             background: WARN_BG,
             color: WARN,
             borderRadius: 8,
-            padding: "9px 12px",
+            padding: "10px 12px",
             fontSize: 12.8,
-            lineHeight: 1.6,
-            marginTop: 10,
+            lineHeight: 1.65,
+            marginBottom: 12,
           }}
         >
-          {
-            "\u26A0 \uCF54\uB4DC\uB97C \uBCF5\uC0AC\uD55C \uB4A4 \uC870\uC0AC \uC124\uC815(\uD559\uAE30\u00B7\uBC18\uBCC4 \uC778\uC6D0\u00B7\uC548\uB0B4\u00B7\uD3B8\uC81C\uD45C)\uC774 \uBC14\uB00C\uC5C8\uC2B5\uB2C8\uB2E4. \uC774\uBBF8 \uBC30\uD3EC\uD588\uB2E4\uBA74 \uCF54\uB4DC\uB97C "
-          }
-          <b>다시 복사해 Apps Script에 붙여넣고 저장</b>한 뒤{" "}
-          <b>배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포</b>를 눌러야 학생 화면에 반영됩니다. 이렇게 하면
-          주소(QR 코드)는 그대로입니다.
+          <div style={{ fontWeight: 800, marginBottom: 4 }}>
+            ⚠ 시트에 넘긴 뒤 조사 설정(학기·반별 인원·안내·편제표)이 바뀌었습니다.
+          </div>
+          이미 설치했다면 <b>[설정 코드 복사]</b>를 누르고, 구글 시트 위 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>에 붙여넣어
+          저장하세요. <b>다시 배포할 필요가 없고</b> 학생 주소(QR 코드)도 그대로입니다.
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+            {copyConfigButton}
+            {copyNote("config")}
+          </div>
+          <div style={{ fontSize: 12, marginTop: 8, color: MUTED }}>
+            시트에 📋 기초조사 메뉴가 없다면 이 프로그램의 예전 버전으로 설치한 시트입니다. 이번 한 번만 Apps Script에 새 설치
+            코드를 붙여넣고 저장한 뒤 <b>배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포</b>를 누르세요. 다음부터는
+            메뉴로 바꿀 수 있습니다.
+          </div>
         </div>
       )}
-      {showCode && !blocked && (
-        <textarea
-          readOnly={true}
-          value={code}
-          onFocus={(e) => e.target.select()}
-          style={{
-            ...inputStyle,
-            width: "100%",
-            height: 150,
-            marginTop: 10,
-            fontFamily: "Menlo, Consolas, monospace",
-            fontSize: 11,
-            whiteSpace: "pre",
-          }}
-        />
+      {copyUrl && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 12.5, color: MUTED, marginRight: 2 }}>설치 방법</span>
+          <button onClick={() => setMethod("template")} style={chipStyle(method === "template")}>
+            템플릿 사본 만들기 (쉬움 · 추천)
+          </button>
+          <button onClick={() => setMethod("code")} style={chipStyle(method === "code")}>
+            새 시트에 코드 붙여넣기
+          </button>
+        </div>
       )}
+      <div style={{ fontSize: 12.3, color: MUTED, marginBottom: 8 }}>
+        하나씩 끝낼 때마다 왼쪽 네모에 체크하세요. ({doneCount}/{steps.length} 완료)
+      </div>
+      {method === "template" ? (
+        <div>
+          <InstallCheckItem no={1} done={checks.t1} onToggle={() => toggle("t1")} title="템플릿 시트 사본 만들기">
+            조사에 쓸 구글 계정으로 로그인한 상태에서 아래 버튼을 누르고 <b>[사본 만들기]</b>를 누릅니다. 만들어진 시트 이름을
+            알아보기 쉽게 바꿔 두세요. (예: 2025 입학생 기초조사 응답)
+            <div style={{ marginTop: 6 }}>
+              <a
+                href={copyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ ...buttonStyle("primary", { padding: "7px 13px" }), textDecoration: "none" }}
+              >
+                📄 템플릿 사본 만들기 ↗
+              </a>
+            </div>
+          </InstallCheckItem>
+          <InstallCheckItem no={2} done={checks.t2} onToggle={() => toggle("t2")} title="조사 설정 넣기">
+            <b>[설정 코드 복사]</b>를 누른 뒤, 사본 시트 위 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>를 열어 Ctrl+V로 붙여넣고{" "}
+            <b>[저장]</b>합니다. 메뉴는 시트가 열리고 몇 초 뒤에 생깁니다. 안 보이면 새로고침하세요. 처음 한 번은 ‘승인 필요’ 창이
+            뜹니다 → <b>[계속]</b> → 내 계정 선택 → 권한 <b>허용</b>.
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+              {copyConfigButton}
+              {copyNote("config")}
+            </div>
+            {textBox("config")}
+            {authNote}
+          </InstallCheckItem>
+          <InstallCheckItem no={3} done={checks.t3} onToggle={() => toggle("t3")} title="웹 앱으로 배포하기">
+            사본 시트 위 메뉴 <b>[확장 프로그램 → Apps Script]</b>를 누르면 편집기가 열립니다. 코드는 이미 들어 있으니 고치지
+            마세요.
+            {deployText}
+          </InstallCheckItem>
+          <InstallCheckItem no={4} done={checks.t4} onToggle={() => toggle("t4")} title="웹 앱 주소 복사하기">
+            배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec) 옆 [복사]를 눌러, 아래 5번 칸에 붙여넣습니다.
+          </InstallCheckItem>
+        </div>
+      ) : (
+        <div>
+          <InstallCheckItem no={1} done={checks.c1} onToggle={() => toggle("c1")} title="새 구글 시트 만들기">
+            조사에 쓸 구글 계정으로 로그인한 상태에서 아래 버튼을 누르면 빈 시트가 바로 열립니다. 왼쪽 위 ‘제목 없는
+            스프레드시트’를 눌러 이름을 붙이세요. (예: 2025 입학생 기초조사 응답)
+            <div style={{ marginTop: 6 }}>
+              <a
+                href="https://sheets.new"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ ...buttonStyle("ghost", { padding: "7px 13px" }), textDecoration: "none" }}
+              >
+                ➕ 새 구글 시트 열기 ↗
+              </a>
+            </div>
+          </InstallCheckItem>
+          <InstallCheckItem no={2} done={checks.c2} onToggle={() => toggle("c2")} title="Apps Script 열기">
+            시트 위쪽 메뉴에서 <b>[확장 프로그램 → Apps Script]</b>를 누릅니다. 새 탭에 코드 편집기가 열립니다.
+          </InstallCheckItem>
+          <InstallCheckItem no={3} done={checks.c3} onToggle={() => toggle("c3")} title="설치 코드 붙여넣고 저장">
+            편집기에 있는 글(function myFunction…)을 <b>모두 지우고</b>, <b>[설치 코드 복사]</b>를 누른 뒤 붙여넣고{" "}
+            <b>저장(Ctrl+S)</b>합니다. 지금 조사 설정이 코드에 함께 들어 있습니다.
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
+              <button
+                disabled={blocked}
+                onClick={() => doCopy("code")}
+                style={buttonStyle(blocked ? "disabled" : "primary", { padding: "7px 13px" })}
+              >
+                📋 설치 코드 복사
+              </button>
+              <button
+                disabled={blocked}
+                onClick={doSave}
+                style={buttonStyle(blocked ? "disabled" : "ghost", { padding: "7px 13px" })}
+              >
+                <Download size={13} /> 코드를 파일로 저장(.txt)
+              </button>
+              {!blocked && (
+                <button
+                  onClick={() => setShowText((v) => (v === "code" ? null : "code"))}
+                  style={{ ...buttonStyle("ghost"), border: "none", color: MUTED }}
+                >
+                  {showText === "code" ? "코드 숨기기" : "코드 직접 보기"}
+                </button>
+              )}
+              {copyNote("code")}
+            </div>
+            {textBox("code")}
+          </InstallCheckItem>
+          <InstallCheckItem no={4} done={checks.c4} onToggle={() => toggle("c4")} title="웹 앱으로 배포하기">
+            {deployText}
+            처음 한 번은 <b>[액세스 승인]</b> → 내 계정 선택 → 권한 <b>허용</b> 화면이 이어집니다.
+            {authNote}
+          </InstallCheckItem>
+          <InstallCheckItem no={5} done={checks.c5} onToggle={() => toggle("c5")} title="웹 앱 주소 복사하기">
+            배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec) 옆 [복사]를 눌러, 아래 5번 칸에 붙여넣습니다.
+          </InstallCheckItem>
+          {!stale && (
+            <div style={{ fontSize: 12.3, color: MUTED, lineHeight: 1.6, margin: "4px 0 8px" }}>
+              설치한 뒤에 조사 설정이 바뀌면 코드를 다시 붙여넣지 말고, <b>[설정 코드 복사]</b> → 시트 메뉴{" "}
+              <b>[📋 기초조사 → 설정 붙여넣기]</b>만 하면 됩니다. 다시 배포할 필요가 없습니다.
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+                {copyConfigButton}
+                {copyNote("config")}
+              </div>
+              {textBox("config")}
+            </div>
+          )}
+        </div>
+      )}
+      <div style={{ marginTop: 6 }}>
+        <SurveyHelpItem title="학교(교육청) 구글 계정이라 ‘모든 사용자’가 목록에 없어요">
+          학교 구글 워크스페이스 계정은 관리자 설정 때문에 ‘모든 사용자’를 고를 수 없을 수 있습니다. 이때는{" "}
+          <b>‘(학교 도메인) 내 모든 사용자’</b>로 배포하고, 학생들이 <b>학교 구글 계정으로 로그인한 휴대폰</b>에서 QR 코드를
+          열게 안내하세요. 학생이 개인 계정만 쓴다면 개인 구글 계정으로 시트를 만들어 설치하는 편이 쉽습니다.
+        </SurveyHelpItem>
+        <SurveyHelpItem title="학생이 QR 코드로 열었더니 구글 로그인 화면이 나와요">
+          배포할 때 ‘액세스 권한이 있는 사용자’를 <b>모든 사용자</b>로 하지 않은 경우입니다. Apps Script 편집기에서{" "}
+          <b>배포 → 배포 관리 → 연필(수정)</b>을 눌러 액세스를 ‘모든 사용자’로 바꾸고 <b>[배포]</b>하세요. 주소는 그대로입니다.
+        </SurveyHelpItem>
+        <SurveyHelpItem title="학생 화면에 ‘아직 조사 준비 중이에요’가 나와요">
+          시트에 조사 설정이 아직 없습니다. <b>[설정 코드 복사]</b>를 누르고 시트 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>에
+          붙여넣어 저장하세요. 저장하면 바로 학생 화면이 열립니다.
+        </SurveyHelpItem>
+        <SurveyHelpItem title="시트 위에 📋 기초조사 메뉴가 안 보여요">
+          시트를 연 뒤 몇 초 기다리거나 새로고침(F5)하세요. 코드를 방금 붙여넣었다면 시트 탭을 새로고침해야 메뉴가 생깁니다.
+          그래도 없으면 Apps Script 편집기에서 코드가 저장되었는지(파일 이름 옆에 저장 안 됨 표시가 없는지) 확인하세요.
+        </SurveyHelpItem>
+      </div>
     </SurveyStep>
   );
 }
@@ -13707,7 +13141,7 @@ function SurveyFileRow({ f, payload, onRemove, onToggleDisabled }) {
             lineHeight: 1.5,
           }}
         >
-          ⚠ 이 응답은 지금 설정과 다른 코드 버전으로 받았습니다. 조사 도중 편제표나 조사 범위를 바꿨다면 과목이 맞는지 ③
+          ⚠ 이 응답은 지금 설정과 다른 설정 버전으로 받았습니다. 조사 도중 편제표나 조사 범위를 바꿨다면 과목이 맞는지 ③
           점검 화면에서 확인하세요.
         </div>
       )}
