@@ -12468,7 +12468,7 @@ function templateCopyUrl(raw) {
   return m ? `https://docs.google.com/spreadsheets/d/${m[1]}/copy` : null;
 }
 const SURVEY_INSTALL_STEPS = {
-  template: ["t1", "t2", "t3", "t4"],
+  template: ["t1", "t2", "t3"],
   code: ["c1", "c2", "c3", "c4", "c5"],
 };
 function InstallCheckItem({ no, done, onToggle, title, children }) {
@@ -12800,18 +12800,13 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
   const [showText, setShowText] = useState(null); // 'code' | 'config' | null
   const blocked = problems.errors.length > 0;
   const copyUrl = templateCopyUrl(SURVEY_TEMPLATE_COPY_URL);
-  const method = copyUrl ? config.installMethod || "template" : "code";
+  const method = copyUrl ? "template" : "code";
   const checks = config.installChecks || {};
   const steps = SURVEY_INSTALL_STEPS[method];
   const doneCount = steps.filter((id) => checks[id]).length;
   const code = useMemo(() => (blocked ? "" : buildAppsScriptCode(payload)), [payload, blocked]);
   const configCode = useMemo(() => (blocked ? "" : buildSurveyConfigCode(payload)), [payload, blocked]);
   const stale = !!config.copiedFp && config.copiedFp !== payload.fp;
-  const setMethod = (m) =>
-    setConfig((c) => ({
-      ...c,
-      installMethod: m,
-    }));
   const toggle = (id) =>
     setConfig((c) => ({
       ...c,
@@ -12905,6 +12900,80 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
       <UnverifiedAppGuide />
     </div>
   );
+  // 템플릿 링크를 못 쓸 때의 예비 방법 (새 시트에 설치 코드를 직접 붙여넣기)
+  const codeSteps = (
+    <div>
+      <InstallCheckItem no={1} done={checks.c1} onToggle={() => toggle("c1")} title="새 구글 시트 만들기">
+        조사에 쓸 구글 계정으로 로그인한 상태에서 아래 버튼을 누르면 빈 시트가 바로 열립니다. 왼쪽 위 ‘제목 없는
+        스프레드시트’를 눌러 이름을 붙이세요. (예: 2025 입학생 기초조사 응답)
+        <div style={{ marginTop: 6 }}>
+          <a
+            href="https://sheets.new"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ ...buttonStyle("ghost", { padding: "7px 13px" }), textDecoration: "none" }}
+          >
+            ➕ 새 구글 시트 열기 ↗
+          </a>
+        </div>
+      </InstallCheckItem>
+      <InstallCheckItem no={2} done={checks.c2} onToggle={() => toggle("c2")} title="Apps Script 열기">
+        시트 위쪽 메뉴에서 <b>[확장 프로그램 → Apps Script]</b>를 누릅니다. 새 탭에 코드 편집기가 열립니다.
+      </InstallCheckItem>
+      <InstallCheckItem no={3} done={checks.c3} onToggle={() => toggle("c3")} title="설치 코드 붙여넣고 저장">
+        편집기에 있는 글(function myFunction…)을 <b>모두 지우고</b>, <b>[설치 코드 복사]</b>를 누른 뒤 붙여넣고{" "}
+        <b>저장(Ctrl+S)</b>합니다. 지금 조사 설정이 코드에 함께 들어 있습니다.
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
+          <button
+            disabled={blocked}
+            onClick={() => doCopy("code")}
+            style={buttonStyle(blocked ? "disabled" : "primary", { padding: "7px 13px" })}
+          >
+            📋 설치 코드 복사
+          </button>
+          <button
+            disabled={blocked}
+            onClick={doSave}
+            style={buttonStyle(blocked ? "disabled" : "ghost", { padding: "7px 13px" })}
+          >
+            <Download size={13} /> 코드를 파일로 저장(.txt)
+          </button>
+          {!blocked && (
+            <button
+              onClick={() => setShowText((v) => (v === "code" ? null : "code"))}
+              style={{ ...buttonStyle("ghost"), border: "none", color: MUTED }}
+            >
+              {showText === "code" ? "코드 숨기기" : "코드 직접 보기"}
+            </button>
+          )}
+          {copyNote("code")}
+        </div>
+        {textBox("code")}
+      </InstallCheckItem>
+      <InstallCheckItem no={4} done={checks.c4} onToggle={() => toggle("c4")} title="웹 앱으로 배포하기">
+        {deployText}
+        <DeployDialogGuide />
+        처음 한 번은 <b>[액세스 승인]</b> → 내 계정 선택 → ‘확인하지 않은 앱’ 화면에서 <b>[고급]</b> →{" "}
+        <b>(프로젝트 이름)(으)로 이동</b> → <b>[모두 선택]</b> 체크 → <b>[계속]</b> 순서로 이어집니다. (아래 그림)
+        {authNote}
+      </InstallCheckItem>
+      <InstallCheckItem no={5} done={checks.c5} onToggle={() => toggle("c5")} title="웹 앱 주소 복사하기">
+        배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec) 옆 [복사]를 눌러, 아래 5번 칸에
+        붙여넣습니다.
+      </InstallCheckItem>
+      {!stale && (
+        <div style={{ fontSize: 12.3, color: MUTED, lineHeight: 1.6, margin: "4px 0 8px" }}>
+          설치한 뒤에 조사 설정이 바뀌면 코드를 다시 붙여넣지 말고, <b>[설정 코드 복사]</b> → 시트 메뉴{" "}
+          <b>[📋 기초조사 → 설정 붙여넣기]</b>만 하면 됩니다. 다시 배포할 필요가 없습니다.
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+            {copyConfigButton}
+            {copyNote("config")}
+          </div>
+          {textBox("config")}
+        </div>
+      )}
+    </div>
+  );
   return (
     <SurveyStep
       no={4}
@@ -12970,22 +13039,11 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
           </div>
         </div>
       )}
-      {copyUrl && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontSize: 12.5, color: MUTED, marginRight: 2 }}>설치 방법</span>
-          <button onClick={() => setMethod("template")} style={chipStyle(method === "template")}>
-            템플릿 사본 만들기 (쉬움 · 추천)
-          </button>
-          <button onClick={() => setMethod("code")} style={chipStyle(method === "code")}>
-            새 시트에 코드 붙여넣기
-          </button>
-        </div>
-      )}
-      <div style={{ fontSize: 12.3, color: MUTED, marginBottom: 8 }}>
-        하나씩 끝낼 때마다 왼쪽 네모에 체크하세요. ({doneCount}/{steps.length} 완료)
-      </div>
-      {method === "template" ? (
+      {copyUrl ? (
         <div>
+          <div style={{ fontSize: 12.3, color: MUTED, marginBottom: 8 }}>
+            세 단계입니다. 하나씩 끝낼 때마다 왼쪽 네모에 체크하세요. ({doneCount}/{steps.length} 완료)
+          </div>
           <InstallCheckItem no={1} done={checks.t1} onToggle={() => toggle("t1")} title="템플릿 시트 사본 만들기">
             조사에 쓸 구글 계정으로 로그인한 상태에서 아래 버튼을 누르고 <b>[사본 만들기]</b>를 누릅니다. 만들어진 시트
             이름을 알아보기 쉽게 바꿔 두세요. (예: 2025 입학생 기초조사 응답)
@@ -13000,101 +13058,65 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
               </a>
             </div>
           </InstallCheckItem>
-          <InstallCheckItem no={2} done={checks.t2} onToggle={() => toggle("t2")} title="조사 설정 넣기">
-            <b>[설정 코드 복사]</b>를 누른 뒤, 사본 시트 위 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>를 열어 Ctrl+V로
-            붙여넣고 <b>[저장]</b>합니다. 메뉴는 시트가 열리고 몇 초 뒤에 생깁니다. 안 보이면 새로고침하세요.
-            <br />
+          <InstallCheckItem
+            no={2}
+            done={checks.t2}
+            onToggle={() => toggle("t2")}
+            title="시트 안에서 설정 넣고 배포하기"
+          >
+            사본 시트가 열리면 첫 화면(시작하기)에 같은 안내가 적혀 있습니다.
+            <ol style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+              <li style={li}>
+                여기서 <b>[설정 코드 복사]</b>를 누릅니다.
+              </li>
+              <li style={li}>
+                사본 시트 위 메뉴 <b>[📋 기초조사 → 설정 붙여넣기 / 바꾸기]</b>를 열어 Ctrl+V로 붙여넣고 <b>[저장]</b>
+                합니다. 메뉴는 시트가 열리고 몇 초 뒤에 생깁니다. 안 보이면 새로고침하세요.
+              </li>
+              <li style={li}>
+                저장한 창에 <b>배포 안내와 [Apps Script 편집기 열기] 버튼</b>이 이어서 나옵니다. 버튼으로 편집기를 열고
+                안내대로 <b>[배포] → [새 배포] → ⚙ 웹 앱 → [배포]</b>를 누릅니다. (아래 그림과 같은 안내가 시트 창에도
+                나옵니다)
+              </li>
+            </ol>
             처음 한 번은 ‘승인 필요’ 창이 뜹니다 → <b>[계속]</b> → 내 계정 선택 → ‘확인하지 않은 앱’ 화면에서{" "}
-            <b>[고급]</b> → <b>(프로젝트 이름)(으)로 이동</b> → <b>[모두 선택]</b> 체크 → <b>[계속]</b>. (아래 그림)
+            <b>[고급]</b> → <b>(프로젝트 이름)(으)로 이동</b> → <b>[모두 선택]</b> 체크 → <b>[계속]</b>.
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
               {copyConfigButton}
               {copyNote("config")}
             </div>
             {textBox("config")}
             {authNote}
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer", color: ACCENT, fontWeight: 700, fontSize: 12.5 }}>
+                배포 창은 이렇게 생겼습니다 (그림으로 보기)
+              </summary>
+              {deployText}
+              <DeployDialogGuide />
+            </details>
           </InstallCheckItem>
-          <InstallCheckItem no={3} done={checks.t3} onToggle={() => toggle("t3")} title="웹 앱으로 배포하기">
-            사본 시트 위 메뉴 <b>[확장 프로그램 → Apps Script]</b>를 누르면 편집기가 열립니다. 코드는 이미 들어 있으니
-            고치지 마세요.
-            {deployText}
-            <DeployDialogGuide />
-          </InstallCheckItem>
-          <InstallCheckItem no={4} done={checks.t4} onToggle={() => toggle("t4")} title="웹 앱 주소 복사하기">
+          <InstallCheckItem
+            no={3}
+            done={checks.t3}
+            onToggle={() => toggle("t3")}
+            title="웹 앱 주소를 아래 5번 칸에 붙여넣기"
+          >
             배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec) 아래 <b>[복사]</b>를 눌러, 아래 5번
-            칸에 붙여넣습니다. 이 주소는 설정을 바꿔도 그대로입니다.
+            칸에 붙여넣습니다. 이 주소는 나중에 설정을 바꿔도 그대로이고, 다시 배포할 필요가 없습니다.
           </InstallCheckItem>
+          <details style={{ marginTop: 4 }}>
+            <summary style={{ cursor: "pointer", color: MUTED, fontSize: 12.3 }}>
+              다른 방법: 템플릿 링크가 열리지 않을 때 새 시트에 코드 붙여넣기
+            </summary>
+            <div style={{ marginTop: 8 }}>{codeSteps}</div>
+          </details>
         </div>
       ) : (
         <div>
-          <InstallCheckItem no={1} done={checks.c1} onToggle={() => toggle("c1")} title="새 구글 시트 만들기">
-            조사에 쓸 구글 계정으로 로그인한 상태에서 아래 버튼을 누르면 빈 시트가 바로 열립니다. 왼쪽 위 ‘제목 없는
-            스프레드시트’를 눌러 이름을 붙이세요. (예: 2025 입학생 기초조사 응답)
-            <div style={{ marginTop: 6 }}>
-              <a
-                href="https://sheets.new"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ ...buttonStyle("ghost", { padding: "7px 13px" }), textDecoration: "none" }}
-              >
-                ➕ 새 구글 시트 열기 ↗
-              </a>
-            </div>
-          </InstallCheckItem>
-          <InstallCheckItem no={2} done={checks.c2} onToggle={() => toggle("c2")} title="Apps Script 열기">
-            시트 위쪽 메뉴에서 <b>[확장 프로그램 → Apps Script]</b>를 누릅니다. 새 탭에 코드 편집기가 열립니다.
-          </InstallCheckItem>
-          <InstallCheckItem no={3} done={checks.c3} onToggle={() => toggle("c3")} title="설치 코드 붙여넣고 저장">
-            편집기에 있는 글(function myFunction…)을 <b>모두 지우고</b>, <b>[설치 코드 복사]</b>를 누른 뒤 붙여넣고{" "}
-            <b>저장(Ctrl+S)</b>합니다. 지금 조사 설정이 코드에 함께 들어 있습니다.
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
-              <button
-                disabled={blocked}
-                onClick={() => doCopy("code")}
-                style={buttonStyle(blocked ? "disabled" : "primary", { padding: "7px 13px" })}
-              >
-                📋 설치 코드 복사
-              </button>
-              <button
-                disabled={blocked}
-                onClick={doSave}
-                style={buttonStyle(blocked ? "disabled" : "ghost", { padding: "7px 13px" })}
-              >
-                <Download size={13} /> 코드를 파일로 저장(.txt)
-              </button>
-              {!blocked && (
-                <button
-                  onClick={() => setShowText((v) => (v === "code" ? null : "code"))}
-                  style={{ ...buttonStyle("ghost"), border: "none", color: MUTED }}
-                >
-                  {showText === "code" ? "코드 숨기기" : "코드 직접 보기"}
-                </button>
-              )}
-              {copyNote("code")}
-            </div>
-            {textBox("code")}
-          </InstallCheckItem>
-          <InstallCheckItem no={4} done={checks.c4} onToggle={() => toggle("c4")} title="웹 앱으로 배포하기">
-            {deployText}
-            <DeployDialogGuide />
-            처음 한 번은 <b>[액세스 승인]</b> → 내 계정 선택 → ‘확인하지 않은 앱’ 화면에서 <b>[고급]</b> →{" "}
-            <b>(프로젝트 이름)(으)로 이동</b> → <b>[모두 선택]</b> 체크 → <b>[계속]</b> 순서로 이어집니다. (아래 그림)
-            {authNote}
-          </InstallCheckItem>
-          <InstallCheckItem no={5} done={checks.c5} onToggle={() => toggle("c5")} title="웹 앱 주소 복사하기">
-            배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec) 옆 [복사]를 눌러, 아래 5번 칸에
-            붙여넣습니다.
-          </InstallCheckItem>
-          {!stale && (
-            <div style={{ fontSize: 12.3, color: MUTED, lineHeight: 1.6, margin: "4px 0 8px" }}>
-              설치한 뒤에 조사 설정이 바뀌면 코드를 다시 붙여넣지 말고, <b>[설정 코드 복사]</b> → 시트 메뉴{" "}
-              <b>[📋 기초조사 → 설정 붙여넣기]</b>만 하면 됩니다. 다시 배포할 필요가 없습니다.
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
-                {copyConfigButton}
-                {copyNote("config")}
-              </div>
-              {textBox("config")}
-            </div>
-          )}
+          <div style={{ fontSize: 12.3, color: MUTED, marginBottom: 8 }}>
+            하나씩 끝낼 때마다 왼쪽 네모에 체크하세요. ({doneCount}/{steps.length} 완료)
+          </div>
+          {codeSteps}
         </div>
       )}
       <div style={{ marginTop: 6 }}>

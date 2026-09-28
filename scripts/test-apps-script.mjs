@@ -2,7 +2,7 @@
 // 실행: npm run test:survey
 import vm from "node:vm";
 import assert from "node:assert/strict";
-import { buildAppsScriptCode, buildTemplateAppsScriptCode, buildSurveyConfigCode } from "../src/survey/appsScript.js";
+import { buildAppsScriptCode, buildTemplateAppsScriptCode, buildSurveyConfigCode, buildTemplateManifest } from "../src/survey/appsScript.js";
 
 // ---- 프로그램(App.jsx)의 buildSurveyPayload와 같은 모양의 설정 ----
 function fnv1aHex(s) {
@@ -67,6 +67,13 @@ class Sheet {
   }
   getName() {
     return this.name;
+  }
+  setName(n) {
+    this.name = n;
+    return this;
+  }
+  setFontSize() {
+    return this;
   }
   getLastColumn() {
     return Math.max(0, ...this.cells.map((r) => (r || []).reduce((mx, v, j) => (v !== "" && v != null ? j + 1 : mx), 0)));
@@ -184,6 +191,7 @@ function makeEnv({ owner = "teacher@example.com", active = "" } = {}, store) {
       },
       HtmlService: { createHtmlOutput: out },
       Utilities: { formatDate: () => "2026-09-28 10:00:00" },
+      ScriptApp: { getScriptId: () => "SCRIPT123" },
       Logger: { log: (m) => store.logs.push(m) },
     },
   };
@@ -198,16 +206,17 @@ function newStore(first = "시트1") {
     logs: [],
     sheets,
     ss: {
-      getSheetByName: (n) => sheets.get(n) || null,
+      getSheetByName: (n) => [...sheets.values()].find((s) => s.name === n) || null,
       insertSheet: (n) => {
         const s = new Sheet(n);
         sheets.set(n, s);
         return s;
       },
       getSheets: () => [...sheets.values()],
+      sheetNames: () => [...sheets.values()].map((s) => s.name),
       deleteSheet: (sh) => {
         if (sheets.size <= 1) throw new Error("마지막 시트는 지울 수 없음");
-        sheets.delete(sh.name);
+        for (const [k, v] of sheets) if (v === sh) sheets.delete(k);
       },
       setActiveSheet: (sh) => (store.active = sh.name),
       moveActiveSheet: (pos) => {
@@ -364,7 +373,7 @@ const codeT = buildTemplateAppsScriptCode();
 test("템플릿: 시트를 열면 [📋 기초조사] 메뉴가 생긴다", () => {
   const st = newStore();
   run(codeT, st, OWNER, "onOpen");
-  assert.deepEqual(st.menu.map((m) => m[1]), ["openConfigDialog", "showConfigSummary"]);
+  assert.deepEqual(st.menu.map((m) => m[1]), ["openConfigDialog", "openDeployDialog", "showConfigSummary"]);
   run(codeT, st, OWNER, "openConfigDialog");
   assert.ok(st.dialogs[0].html.includes("saveSurveyConfig"));
   assert.ok(st.dialogs[0].html.includes("</script>"), "설정 창의 스크립트 태그가 제대로 닫힘");
@@ -410,6 +419,43 @@ test("선생님이 무언가 적어 둔 시트1은 지우지 않는다", () => {
   run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
   assert.ok(st.sheets.has("시트1"));
   assert.ok(st.sheets.get("조사설정").hidden, "조사설정은 여전히 숨김");
+});
+
+
+test("템플릿: 사본을 처음 열면 빈 시트1이 ‘시작하기’ 안내 시트가 되고, 조사 준비 뒤엔 사라진다", () => {
+  const st = newStore();
+  run(codeT, st, OWNER, "onOpen");
+  assert.deepEqual(st.ss.sheetNames(), ["시작하기"]);
+  const start = st.ss.getSheetByName("시작하기");
+  assert.match(String(start.getRange(2, 1).getValue()), /설정 코드 복사/);
+  run(codeT, st, OWNER, "onOpen"); // 두 번 열어도 그대로
+  assert.equal(start.getLastRow(), 5);
+  run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
+  assert.ok(!st.ss.getSheetByName("시작하기"), "조사 준비 뒤 삭제");
+  run(codeT, st, OWNER, "onOpen"); // 준비된 뒤에는 다시 만들지 않음
+  assert.ok(!st.ss.getSheetByName("시작하기"));
+  assert.deepEqual(st.menu.slice(-3).map((x) => x[1]), ["openConfigDialog", "openDeployDialog", "showConfigSummary"]);
+});
+
+test("설정을 저장하면 같은 창에서 배포 안내와 편집기 주소를 이어서 준다", () => {
+  const st = newStore();
+  const { result } = run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
+  assert.equal(result.editorUrl, "https://script.google.com/d/SCRIPT123/edit");
+  run(codeT, st, OWNER, "openConfigDialog");
+  const html = st.dialogs[0].html;
+  assert.ok(html.includes("var DG_HTML = ") && html.includes("Apps Script 편집기 열기") && html.includes("모든 사용자"));
+  assert.ok(!html.includes("__DG_"), "자리표시자가 남지 않음");
+  run(codeT, st, OWNER, "openDeployDialog");
+  const dep = st.dialogs[1].html;
+  assert.ok(dep.includes('href = "https://script.google.com/d/SCRIPT123/edit"') && dep.includes('class="dg"'));
+  assert.ok(!dep.includes("__EDITOR__") && !dep.includes("__DG_"));
+  assert.throws(() => run(codeT, st, STUDENT, "openDeployDialog"), /선생님 계정에서만/);
+});
+
+test("템플릿 매니페스트: 배포 창 기본값만 있고 권한 목록은 없다", () => {
+  const m = JSON.parse(buildTemplateManifest());
+  assert.deepEqual(m.webapp, { executeAs: "USER_DEPLOYING", access: "ANYONE_ANONYMOUS" });
+  assert.equal(m.oauthScopes, undefined);
 });
 
 console.log(`\n${passed}개 통과`);

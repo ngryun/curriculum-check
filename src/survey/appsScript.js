@@ -493,8 +493,55 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu(MENU_NAME)
     .addItem("설정 붙여넣기 / 바꾸기", "openConfigDialog")
+    .addItem("배포(학생용 주소 만들기) 안내", "openDeployDialog")
     .addItem("지금 설정 보기", "showConfigSummary")
     .addToUi();
+  // 사본을 막 만든 선생님이 뭘 눌러야 할지 바로 보이도록, 조사 준비 전에는 '시작하기' 시트에 안내를 적어 둡니다
+  try {
+    ensureStartSheet_(SpreadsheetApp.getActiveSpreadsheet());
+  } catch (e) {
+    // 안내를 못 적어도 메뉴는 그대로 씁니다
+  }
+}
+
+function ensureStartSheet_(ss) {
+  if (ss.getSheetByName(SHEET_SETTINGS) || ss.getSheetByName(SHEET_CONFIG)) return;
+  var sh = ss.getSheetByName(SHEET_START);
+  if (!sh) {
+    var sheets = ss.getSheets();
+    for (var i = 0; i < sheets.length && !sh; i++) {
+      var cand = sheets[i];
+      if (DEFAULT_SHEET_NAMES.indexOf(cand.getName()) >= 0 && cand.getLastRow() === 0 && cand.getLastColumn() === 0) {
+        cand.setName(SHEET_START);
+        sh = cand;
+      }
+    }
+  }
+  if (!sh) sh = ss.insertSheet(SHEET_START, 0);
+  if (sh.getLastRow() > 0) return;
+  sh.getRange(1, 1, 5, 1).setValues([
+    ["학생 기초조사 시트입니다. 아직 조사 설정이 없습니다."],
+    ["① 졸업이수요건 점검 프로그램에서 [설정 코드 복사]를 누르세요."],
+    ["② 이 시트 위쪽 메뉴 [" + MENU_NAME + " → 설정 붙여넣기 / 바꾸기]를 열어 붙여넣고 [저장]하세요."],
+    ["③ 저장한 창에 이어서 나오는 안내대로 [배포]하면 학생용 주소가 나옵니다."],
+    ["메뉴가 안 보이면 이 시트를 새로고침(F5)하세요. 조사가 준비되면 이 시트는 자동으로 사라집니다."]
+  ]);
+  sh.getRange(1, 1).setFontWeight("bold").setFontSize(14);
+  sh.getRange(2, 1, 3, 1).setFontSize(12);
+  sh.setColumnWidth(1, 720);
+}
+
+function openDeployDialog() {
+  requireOwner_();
+  var html = HtmlService.createHtmlOutput(DEPLOY_DIALOG_HTML.replace("/*__EDITOR__*/null", function () { return JSON.stringify(editorUrl_()); }))
+    .setWidth(600)
+    .setHeight(620);
+  SpreadsheetApp.getUi().showModalDialog(html, "배포 — 학생용 주소 만들기");
+}
+
+// 이 시트에 붙은 Apps Script 편집기 주소 (선생님이 [확장 프로그램 → Apps Script]를 찾지 않아도 되게)
+function editorUrl_() {
+  return "https://script.google.com/d/" + ScriptApp.getScriptId() + "/edit";
 }
 
 function openConfigDialog() {
@@ -520,7 +567,7 @@ function saveSurveyConfig(text, confirmed) {
   var ss = book_();
   var s = parseConfig_(text);
   load_(ss);
-  if (SURVEY && SURVEY.fp === s.fp) return { ok: true, same: true, summary: summary_(s) };
+  if (SURVEY && SURVEY.fp === s.fp) return { ok: true, same: true, summary: summary_(s), editorUrl: editorUrl_() };
   if (SURVEY && SURVEY.id !== s.id && !confirmed) {
     return {
       ok: false,
@@ -537,7 +584,7 @@ function saveSurveyConfig(text, confirmed) {
   } finally {
     lock.releaseLock();
   }
-  return { ok: true, summary: summary_(s) };
+  return { ok: true, summary: summary_(s), editorUrl: editorUrl_() };
 }
 
 // (선택) 편집기에서 시트 탭을 미리 만들어 보고 싶을 때 실행합니다. 안 해도 학생이 처음 들어올 때 자동으로 만들어집니다.
@@ -968,6 +1015,43 @@ function validate_(p) {
   return { cls: k.c, num: num, name: name, awayLabels: awayLabels.join(", "), memo: cleanText_(p.memo, 300), rows: rows, summary: summary.join(" / ") };
 }
 `;
+// 설정 창과 배포 안내 창이 함께 쓰는 배포 안내 (Apps Script 편집기의 [새 배포] 창을 글과 그림으로)
+const DEPLOY_GUIDE_CSS = String.raw`
+.dg{border:1px solid #DDD8CC;border-radius:8px;padding:12px 14px;margin-top:12px;background:#FBFAF7}
+.dg h3{font-size:14px;margin:0 0 6px}
+.dg ol{margin:6px 0 0;padding-left:20px}
+.dg li{margin-bottom:4px}
+.dg .btn{display:inline-block;background:#2C5A8A;color:#fff;font-weight:bold;border-radius:6px;padding:8px 14px;text-decoration:none;margin:8px 0 4px}
+.dg .pic{border:1px solid #DADCE0;border-radius:8px;background:#fff;padding:10px 12px;margin-top:10px;font-family:Roboto,Arial,sans-serif;color:#3C4043;font-size:12px}
+.dg .ring{outline:3px solid #D93025;outline-offset:2px;border-radius:4px}
+.dg .blue{display:inline-block;background:#1A73E8;color:#fff;font-weight:bold;border-radius:4px;padding:4px 10px}
+.dg .fld{border:1px solid #DADCE0;border-radius:4px;padding:5px 8px;margin-top:3px;display:flex;justify-content:space-between}
+.dg .cap{font-size:11px;color:#5F6368;margin-top:8px}
+.dg .note{font-size:12px;color:#6B7280;margin-top:8px;line-height:1.6}
+`;
+const DEPLOY_GUIDE_HTML = String.raw`<div class="dg" id="dg">
+<h3>다음: 웹 앱으로 배포하기 (학생용 주소 만들기)</h3>
+<a class="btn" id="editor" target="_blank" rel="noopener">Apps Script 편집기 열기 ↗</a>
+<div>새 탭에 코드 편집기가 열립니다. 코드는 이미 들어 있으니 고치지 마세요. 편집기에서:</div>
+<ol>
+<li>오른쪽 위 파란 <b>[배포] → [새 배포]</b></li>
+<li>‘유형 선택’ 옆 톱니바퀴 <b>⚙ → 웹 앱</b></li>
+<li>‘다음 사용자 인증 정보로 실행’은 <b>나</b>, ‘액세스 권한이 있는 사용자’는 <b>모든 사용자</b> (이미 골라져 있으면 그대로) → <b>[배포]</b></li>
+<li>‘액세스 승인’ 창이 나오면 허용 (처음 한 번)</li>
+<li>나온 <b>웹 앱 URL</b>(…/exec) 아래 <b>[복사]</b> → 졸업이수요건 점검 프로그램의 <b>5번 칸</b>에 붙여넣기</li>
+</ol>
+<div class="pic">
+  <div style="display:flex;justify-content:space-between;align-items:center;color:#5F6368"><span>편집기 오른쪽 위</span><span class="ring"><span class="blue">배포 ▾</span></span></div>
+  <div style="text-align:right;margin-top:4px">▸ <b>새 배포</b></div>
+  <div style="font-size:15px;color:#202124;margin:8px 0 6px">새 배포</div>
+  <div style="display:flex;gap:12px">
+    <div style="flex:0 0 36%;border-right:1px solid #DADCE0;padding-right:8px">유형 선택 <span class="ring">⚙</span><div class="cap">톱니바퀴를 누르면</div><span class="ring" style="display:inline-block;margin-top:4px;padding:2px 6px">웹 앱</span></div>
+    <div style="flex:1"><div class="cap" style="margin-top:0">다음 사용자 인증 정보로 실행</div><div class="fld ring"><b>나</b><span>▾</span></div><div class="cap">액세스 권한이 있는 사용자</div><div class="fld ring"><b>모든 사용자</b><span>▾</span></div></div>
+  </div>
+  <div style="text-align:right;margin-top:12px"><span style="color:#1A73E8;margin-right:10px">취소</span><span class="ring"><span class="blue">배포</span></span></div>
+</div>
+<div class="note">‘모든 사용자’를 골라야 학생이 로그인 없이 QR 코드로 바로 들어옵니다. 설정을 나중에 바꿔도 이 주소는 그대로이고, 다시 배포할 필요가 없습니다.</div>
+</div>`;
 // 시트 메뉴 [기초조사 → 설정 붙여넣기]가 여는 창. 구글 시트 안에서 도는 화면이라 오래된 문법(ES5)만 씁니다.
 const CONFIG_DIALOG_HTML = String.raw`<!DOCTYPE html><html><head><base target="_top"><meta charset="utf-8">
 <style>
@@ -981,6 +1065,7 @@ button:disabled{opacity:.5;cursor:default}
 #msg{margin-top:10px;white-space:pre-wrap;border-radius:6px}
 .ok{background:#E7F1EA;color:#2F6D4F;padding:8px 10px}
 .err{background:#F7E9E3;color:#A2452C;padding:8px 10px}
+/*__DG_CSS__*/
 </style></head><body>
 <ol>
 <li>졸업이수요건 점검 프로그램 → <b>② 수강신청 · 학생 확인 → 학생 기초조사</b>의 4번에서 <b>[설정 코드 복사]</b>를 누릅니다.</li>
@@ -989,6 +1074,7 @@ button:disabled{opacity:.5;cursor:default}
 <textarea id="t" placeholder="여기에 붙여넣기 (Ctrl+V)"></textarea>
 <div class="row"><button id="save" class="primary">저장</button><button id="close">닫기</button><span id="more"></span></div>
 <div id="msg"></div>
+<div id="next"></div>
 <script>
 var t = document.getElementById("t");
 var btn = document.getElementById("save");
@@ -1011,6 +1097,11 @@ function save(confirmed) {
         return;
       }
       show("ok", (r.same ? "✓ 이미 같은 설정이 들어 있습니다." : "✓ 저장했습니다. 다시 배포하지 않아도 학생 화면에 바로 반영됩니다.") + "\n\n" + r.summary);
+      // 처음 설치 중이면 같은 창에서 배포까지 이어서 안내합니다
+      var next = document.getElementById("next");
+      next.innerHTML = DG_HTML;
+      document.getElementById("editor").href = r.editorUrl;
+      next.scrollIntoView();
     })
     .withFailureHandler(function (e) {
       btn.disabled = false;
@@ -1020,9 +1111,31 @@ function save(confirmed) {
 }
 btn.onclick = function () { save(false); };
 document.getElementById("close").onclick = function () { google.script.host.close(); };
+var DG_HTML = /*__DG_HTML__*/"";
 t.focus();
 <\/script>
-</body></html>`.replace("<\\/script>", "</scr" + "ipt>"); // 이 프로그램 페이지(빌드된 index.html) 안에 스크립트 닫는 태그가 그대로 있으면 안 됩니다
+</body></html>`
+  .replace("<\\/script>", "</scr" + "ipt>") // 이 프로그램 페이지(빌드된 index.html) 안에 스크립트 닫는 태그가 그대로 있으면 안 됩니다
+  .replace("/*__DG_CSS__*/", () => DEPLOY_GUIDE_CSS)
+  .replace('/*__DG_HTML__*/""', () => JSON.stringify(DEPLOY_GUIDE_HTML));
+// 메뉴 [기초조사 → 배포 안내]가 여는 창 — 설정 창을 닫아 버렸거나 나중에 다시 보고 싶을 때
+const DEPLOY_DIALOG_HTML = String.raw`<!DOCTYPE html><html><head><base target="_top"><meta charset="utf-8">
+<style>
+body{font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;font-size:13px;line-height:1.6;color:#1C2333;margin:0;padding:2px}
+button{padding:7px 16px;font-size:13px;border-radius:6px;border:1px solid #DDD8CC;background:#fff;cursor:pointer}
+/*__DG_CSS__*/
+.dg{margin-top:0}
+</style></head><body>
+/*__DG_BODY__*/
+<div style="margin-top:12px"><button id="close">닫기</button></div>
+<script>
+document.getElementById("editor").href = /*__EDITOR__*/null;
+document.getElementById("close").onclick = function () { google.script.host.close(); };
+<\/script>
+</body></html>`
+  .replace("<\\/script>", "</scr" + "ipt>")
+  .replace("/*__DG_CSS__*/", () => DEPLOY_GUIDE_CSS)
+  .replace("/*__DG_BODY__*/", () => DEPLOY_GUIDE_HTML);
 // 설정을 아직 넣지 않은 시트의 웹 앱 주소를 열었을 때 보이는 화면
 const NOT_READY_HTML = String.raw`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
 <style>body{font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;background:#F6F4EF;color:#1C2333;margin:0;padding:32px 18px;line-height:1.7}
@@ -1037,6 +1150,7 @@ function appsScriptCommon() {
     // 학생 화면의 제목은 doGet이 조사 이름으로 바꿔 달아서, 코드 안의 화면은 조사와 상관없이 같습니다
     "var PAGE_HTML = " + JSON.stringify(buildStudentPageTemplate("기초조사")) + ";",
     "var CONFIG_DIALOG_HTML = " + JSON.stringify(CONFIG_DIALOG_HTML) + ";",
+    "var DEPLOY_DIALOG_HTML = " + JSON.stringify(DEPLOY_DIALOG_HTML) + ";",
     "var NOT_READY_HTML = " + JSON.stringify(NOT_READY_HTML) + ";",
     SURVEY_SERVER_CODE,
   ];
@@ -1064,12 +1178,25 @@ function buildTemplateAppsScriptCode() {
     "/** @OnlyCurrentDoc */",
     "// 졸업이수요건 점검 프로그램 — 학생 기초조사 템플릿 코드 (이 시트의 사본을 만들어 쓰세요)",
     "// 사용법: ① 시트 위 메뉴 [📋 기초조사 → 설정 붙여넣기]에 프로그램에서 복사한 설정 코드를 넣기",
-    "//        ② [확장 프로그램 → Apps Script → 배포 → 새 배포 → 웹 앱] 실행: 나 · 액세스 권한: 모든 사용자 → [배포] → 웹 앱 URL을 프로그램에 붙여넣기",
+    "//        ② 저장한 창에 이어서 나오는 안내대로 [배포 → 새 배포 → 웹 앱] 실행: 나 · 액세스 권한: 모든 사용자 → [배포] → 웹 앱 URL을 프로그램에 붙여넣기",
     "// 이 코드는 이 구글 시트 하나에만 접근하며(@OnlyCurrentDoc), 학생이 낸 내용은 이 시트에만 저장됩니다.",
     "",
     "var BUNDLED_SURVEY = null;",
     ...appsScriptCommon(),
   ].join(NL);
+}
+// 템플릿 시트의 appsscript.json — [새 배포] 창에서 '나 · 모든 사용자'가 미리 골라져 있게 하는 기본값입니다.
+// 사본에 그대로 따라오는지는 확인되지 않았습니다. 따라오지 않아도 선생님이 두 항목을 고르면 되므로 손해는 없습니다.
+// oauthScopes는 일부러 적지 않습니다 (적으면 코드에 없는 권한까지 묻게 됨).
+const TEMPLATE_MANIFEST = {
+  timeZone: "Asia/Seoul",
+  dependencies: {},
+  exceptionLogging: "STACKDRIVER",
+  runtimeVersion: "V8",
+  webapp: { executeAs: "USER_DEPLOYING", access: "ANYONE_ANONYMOUS" },
+};
+function buildTemplateManifest() {
+  return JSON.stringify(TEMPLATE_MANIFEST, null, 2);
 }
 // [설정 코드 복사]: 시트 메뉴 [설정 붙여넣기]에 넣는 글
 function buildSurveyConfigCode(payload) {
@@ -1081,6 +1208,8 @@ export {
   buildAppsScriptCode,
   buildTemplateAppsScriptCode,
   buildSurveyConfigCode,
+  buildTemplateManifest,
   SURVEY_SERVER_CODE,
   CONFIG_DIALOG_HTML,
+  DEPLOY_DIALOG_HTML,
 };
