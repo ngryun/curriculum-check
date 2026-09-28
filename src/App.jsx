@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { SURVEY_TEMPLATE_COPY_URL } from "./config.js";
+import appsScriptApiOnImg from "./assets/apps-script-api-on.png";
 import { buildStudentPageHtml, buildAppsScriptCode, buildSurveyConfigCode } from "./survey/appsScript.js";
 
 function makeIcon(char) {
@@ -12778,6 +12779,16 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
                 ⚙ Apps Script API 설정 열기 ↗
               </a>
             </div>
+            <figure style={{ margin: "8px 0 0" }}>
+              <img
+                src={appsScriptApiOnImg}
+                alt="Google Apps Script API 설정 화면: 사용 스위치가 켜진 모습"
+                style={{ display: "block", width: "100%", maxWidth: 520, height: "auto", border: `1px solid ${LINE}`, borderRadius: 8 }}
+              />
+              <figcaption style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>
+                ‘Google Apps Script API’를 누른 뒤 ‘사용’ 스위치가 이렇게 파랗게 켜지면 됩니다.
+              </figcaption>
+            </figure>
           </InstallCheckItem>
           <InstallCheckItem no={3} done={checks.t6} onToggle={() => toggle("t6")} title="설정 넣고 학생용 주소 만들기">
             <ol style={{ margin: "2px 0 0", paddingLeft: 18 }}>
