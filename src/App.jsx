@@ -13172,6 +13172,54 @@ function SheetMenuPicture() {
     </div>
   );
 }
+// [배포]를 누른 직후의 '새 배포' 창: 주소 대신 [액세스 승인] 버튼이 먼저 나옵니다. 여기서 멈추는 분이 많아 따로 그립니다.
+function DeployAuthPicture() {
+  const ring = { outline: "3px solid #D93025", outlineOffset: 2, borderRadius: 4 };
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 800, color: INK }}>
+        [배포]를 누르면 주소가 바로 나오지 않고 이 화면이 먼저 나옵니다
+      </div>
+      <div
+        style={{
+          marginTop: 6,
+          maxWidth: 520,
+          border: `1px solid ${LINE}`,
+          borderRadius: 8,
+          background: "#fff",
+          fontFamily: "Roboto, Arial, sans-serif",
+          color: "#3C4043",
+          fontSize: 12.5,
+          padding: "12px 14px",
+        }}
+      >
+        <div style={{ fontSize: 15, color: "#202124" }}>새 배포</div>
+        <div style={{ marginTop: 8 }}>웹 앱에서 내 데이터에 대한 액세스 권한 부여를 나에게 요청합니다.</div>
+        <div style={{ marginTop: 10 }}>
+          <span
+            style={{
+              ...ring,
+              display: "inline-block",
+              background: "#1A73E8",
+              color: "#fff",
+              fontWeight: 700,
+              borderRadius: 4,
+              padding: "6px 14px",
+            }}
+          >
+            액세스 승인
+          </span>
+          <span style={{ color: "#A2452C", fontSize: 11.5, marginLeft: 8 }}>← 누르세요</span>
+        </div>
+      </div>
+      <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.6, marginTop: 6 }}>
+        <b style={{ color: INK }}>[액세스 승인]</b> → 내 계정 선택 → 위의 ‘Google에서 확인하지 않은 앱’ 화면이{" "}
+        <b style={{ color: INK }}>한 번 더</b> 나옵니다. 같은 순서(고급 → 이동 → 모두 선택 → 계속)로 허용하면 주소가
+        나옵니다. 설정을 붙여넣을 때 이미 허용했더라도 배포 때 다시 묻는 경우가 있습니다.
+      </div>
+    </div>
+  );
+}
 // 'Google에서 확인하지 않은 앱' 화면을 실제 모습대로 그린 그림. 캡처 대신 그려서, 개발자 이메일 자리에 누구 주소가 보이는지 설명할 수 있습니다.
 function UnverifiedAppGuide() {
   const screen = {
@@ -13437,6 +13485,10 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
       <li style={li}>
         ‘다음 사용자 인증 정보로 실행’은 <b>나</b>, ‘액세스 권한이 있는 사용자’는 <b>모든 사용자</b> → <b>[배포]</b>
       </li>
+      <li style={li}>
+        <b>[액세스 승인]</b> → 내 계정 선택 → ‘확인하지 않은 앱’ 화면에서 <b>고급 → 이동 → 모두 선택 → 계속</b> (배포
+        때도 한 번 더 묻습니다)
+      </li>
     </ol>
   );
   // 권한 허용 중 가장 많이 막히는 화면이라 접지 않고 늘 보여줍니다
@@ -13507,6 +13559,7 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
       <InstallCheckItem no={4} done={checks.c4} onToggle={() => toggle("c4")} title="웹 앱으로 배포하기">
         {deployText}
         <DeployDialogGuide />
+        <DeployAuthPicture />
         처음 한 번은 <b>[액세스 승인]</b> → 내 계정 선택 → ‘확인하지 않은 앱’ 화면에서 <b>[고급]</b> →{" "}
         <b>(프로젝트 이름)(으)로 이동</b> → <b>[모두 선택]</b> 체크 → <b>[계속]</b> 순서로 이어집니다. (아래 그림)
         {authNote}
@@ -13649,6 +13702,7 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
             </div>
             {deployText}
             <DeployDialogGuide />
+            <DeployAuthPicture />
           </InstallCheckItem>
           <InstallCheckItem
             no={3}
