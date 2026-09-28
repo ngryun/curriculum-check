@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { SURVEY_TEMPLATE_COPY_URL } from "./config.js";
 import { buildStudentPageHtml, buildAppsScriptCode, buildSurveyConfigCode } from "./survey/appsScript.js";
+import { keepRead, keepWrite, keepClear, KEEP_MAX_AGE_DAYS } from "./localKeep.js";
 
 function makeIcon(char) {
   return function Icon({ size = 14, color, style, ...rest }) {
@@ -3209,6 +3210,20 @@ async function decryptText(payload, password) {
   );
   return new TextDecoder().decode(plainBuf);
 }
+// 자동 보관용 잠금 도구. 파일 저장(encryptText)과 같은 형식으로 내보내서 decryptText로 열 수 있습니다.
+async function makeKeeper(password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await deriveKey(password, salt);
+  const saltB64 = bufToB64(salt);
+  const enc = new TextEncoder();
+  return {
+    async encrypt(text) {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const cipherBuf = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(text));
+      return { encrypted: true, salt: saltB64, iv: bufToB64(iv), data: bufToB64(cipherBuf) };
+    },
+  };
+}
 function toCsv(rows, headers) {
   const esc = (v) => {
     let s = v == null ? "" : String(v);
@@ -6053,6 +6068,53 @@ function GraduationCheckerInner() {
   const [loadError, setLoadError] = useState(null);
   const loadInputRef = useRef(null);
   const cryptoAvailable = typeof window !== "undefined" && !!(window.crypto && window.crypto.subtle);
+  // ---- 브라우저 임시 보관 (비밀번호로 잠가 IndexedDB에 자동 저장) ----
+  const [keepPassword, setKeepPassword] = useState(null); // 정해지면 자동 보관이 켜진 것. 메모리에만 둡니다
+  const [keepDraft, setKeepDraft] = useState(""); // 보관 띠의 비밀번호 입력칸
+  const [keepDeclined, setKeepDeclined] = useState(() => {
+    try {
+      return sessionStorage.getItem("keepDeclined") === "1";
+    } catch (e) {
+      return false;
+    }
+  });
+  const [keepState, setKeepState] = useState({ savedAt: null, error: "" });
+  const [resumeInfo, setResumeInfo] = useState(null); // 다시 열었을 때 발견한 지난 작업 {savedAt, summary, payload}
+  const [resumePassword, setResumePassword] = useState("");
+  const [resumeError, setResumeError] = useState("");
+  const [resumeBusy, setResumeBusy] = useState(false);
+  const keeperRef = useRef(null);
+  const keepDirtyRef = useRef(false);
+  const keepTimerRef = useRef(null);
+  useEffect(() => {
+    // 처음 열 때: 이 브라우저에 지난 작업이 남아 있으면 이어할지 묻습니다 (묻지 않고 자동으로 불러오지 않음)
+    if (!cryptoAvailable) return;
+    keepRead()
+      .then((rec) => {
+        if (rec) setResumeInfo(rec);
+      })
+      .catch(() => {});
+  }, []);
+  const startKeeping = async (password) => {
+    keeperRef.current = await makeKeeper(password);
+    setKeepPassword(password);
+    setKeepDraft("");
+    keepDirtyRef.current = true; // 바로 한 번 보관
+  };
+  const stopKeeping = async () => {
+    keeperRef.current = null;
+    setKeepPassword(null);
+    setKeepState({ savedAt: null, error: "" });
+    await keepClear();
+  };
+  const declineKeeping = () => {
+    setKeepDeclined(true);
+    try {
+      sessionStorage.setItem("keepDeclined", "1");
+    } catch (e) {
+      // 세션 저장이 막혀 있으면 이번 화면에서만 기억
+    }
+  };
   const handleCurriculum = async (files) => {
     const file = files[0];
     setCurriculumError(null);
@@ -7327,6 +7389,7 @@ function GraduationCheckerInner() {
     if (!hasWork) return undefined;
     // 작업 내용은 이 화면(브라우저 메모리)에만 있으므로, 실수로 창을 닫거나 새로고침하기 전에 한 번 묻습니다.
     const handler = (e) => {
+      if (keeperRef.current && !keepDirtyRef.current) return undefined; // 브라우저에 최신 내용이 보관되어 있음
       e.preventDefault();
       e.returnValue = "";
       return "";
@@ -7373,6 +7436,82 @@ function GraduationCheckerInner() {
       surveyExcluded,
       grade1Electives,
     };
+  };
+  const keepSummary = () => ({
+    curriculum: curriculumFile ? curriculumFile.name : "",
+    students: results.length,
+    files: regFiles.length + surveyFiles.length,
+  });
+  useEffect(() => {
+    if (!keeperRef.current || !hasWork) return undefined;
+    keepDirtyRef.current = true;
+    clearTimeout(keepTimerRef.current);
+    keepTimerRef.current = setTimeout(async () => {
+      const keeper = keeperRef.current;
+      if (!keeper) return;
+      try {
+        const payload = await keeper.encrypt(JSON.stringify(buildSnapshot()));
+        await keepWrite({ savedAt: new Date().toISOString(), summary: keepSummary(), payload });
+        keepDirtyRef.current = false;
+        setKeepState({ savedAt: new Date(), error: "" });
+      } catch (e) {
+        setKeepState((k) => ({ ...k, error: (e && e.message) || "브라우저에 보관하지 못했습니다." }));
+      }
+    }, 3000);
+    return () => clearTimeout(keepTimerRef.current);
+  }, [
+    keepPassword,
+    curriculumFile,
+    reqOverride,
+    minCredit,
+    regFiles,
+    semesterSourceChoice,
+    mergeGroups,
+    archivedStudents,
+    classTeachers,
+    builderData,
+    priorityGroups,
+    admissionYear,
+    creativeActivityCredit,
+    classMappingFiles,
+    courseChanges,
+    transferInfo,
+    extraCourses,
+    manualStudents,
+    rosterMode,
+    surveyConfig,
+    surveyFiles,
+    surveyChoice,
+    surveyExcluded,
+    grade1Electives,
+  ]);
+  const confirmResume = async () => {
+    if (!resumeInfo || !resumePassword) return;
+    setResumeBusy(true);
+    setResumeError("");
+    try {
+      const json = await decryptText(resumeInfo.payload, resumePassword);
+      restoreSnapshot(JSON.parse(json));
+      setLastSavedAt(null); // 브라우저 보관분을 연 것이지 파일로 저장한 것은 아님
+      await startKeeping(resumePassword);
+      setKeepState({ savedAt: new Date(resumeInfo.savedAt), error: "" });
+      setResumeInfo(null);
+      setResumePassword("");
+    } catch (e) {
+      setResumeError(
+        e && e.name === "OperationError"
+          ? "비밀번호가 올바르지 않습니다."
+          : (e && e.message) || "지난 작업을 불러오지 못했습니다.",
+      );
+    } finally {
+      setResumeBusy(false);
+    }
+  };
+  const discardResume = async () => {
+    await keepClear();
+    setResumeInfo(null);
+    setResumePassword("");
+    setResumeError("");
   };
   const confirmSave = async () => {
     setSaveError(null);
@@ -7550,15 +7689,21 @@ function GraduationCheckerInner() {
                 <span
                   style={{
                     fontSize: 11.5,
-                    color: lastSavedAt ? MUTED : WARN,
+                    color: lastSavedAt || keepPassword ? MUTED : WARN,
                   }}
                 >
-                  {savedLabel}
+                  {keepPassword
+                    ? `브라우저 보관 ${keepState.error ? "실패" : keepState.savedAt ? `${String(keepState.savedAt.getHours()).padStart(2, "0")}:${String(keepState.savedAt.getMinutes()).padStart(2, "0")}` : "중…"} · ${lastSavedAt ? savedLabel : "파일 저장 안 함"}`
+                    : savedLabel}
                 </span>
               )}
               <button
                 onClick={() => {
                   setSaveError(null);
+                  if (keepPassword) {
+                    setUsePassword(true);
+                    setSavePassword(keepPassword);
+                  }
                   setSaveModal(true);
                 }}
                 style={{
@@ -7959,9 +8104,96 @@ function GraduationCheckerInner() {
             2026 고교학점제 종합지원단 학점이수관리팀 제작
           </div>
           <div>Copyright © 2026. All rights reserved. 무단 복제·수정·재배포 및 상업적 이용을 금합니다.</div>
+          <div style={{ marginTop: 4 }}>
+            프로그램 업데이트 {__BUILD_INFO__.builtAt}
+            {__BUILD_INFO__.commit ? ` (${__BUILD_INFO__.commit})` : ""}
+          </div>
         </div>
       </footer>
       {surveyPreview && <SurveyPreviewModal html={surveyPreviewHtml} onClose={() => setSurveyPreview(false)} />}
+      {cryptoAvailable && hasWork && !keepPassword && !keepDeclined && !resumeInfo && (
+        <KeepOfferBar
+          value={keepDraft}
+          onChange={setKeepDraft}
+          onKeep={() => keepDraft.length >= 4 && startKeeping(keepDraft)}
+          onDecline={declineKeeping}
+        />
+      )}
+      {resumeInfo && (
+        <ModalShell onClose={() => {}}>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 700, marginBottom: 6 }}
+          >
+            <Lock size={16} />
+            {" 이 브라우저에 지난 작업이 있습니다"}
+          </div>
+          <div style={{ fontSize: 12.5, color: MUTED, marginBottom: 12, lineHeight: 1.6 }}>
+            {(() => {
+              const d = new Date(resumeInfo.savedAt);
+              const sm = resumeInfo.summary || {};
+              return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} 보관${sm.curriculum ? ` · 편제표 ${sm.curriculum}` : ""}${sm.students ? ` · 학생 ${sm.students}명` : ""}`;
+            })()}
+            <br />
+            보관할 때 정한 비밀번호를 넣으면 이어서 합니다. 비밀번호를 잊었다면 되찾을 수 없으니, 파일로 저장한 것이
+            있으면 그 파일을 불러오세요.
+          </div>
+          <input
+            type="password"
+            value={resumePassword}
+            onChange={(e) => setResumePassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") confirmResume();
+            }}
+            placeholder="비밀번호 입력"
+            autoFocus={true}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "9px 11px",
+              borderRadius: 7,
+              border: `1px solid ${LINE}`,
+              fontSize: 13,
+              marginBottom: 10,
+            }}
+          />
+          {resumeError && <div style={{ fontSize: 12.5, color: WARN, marginBottom: 10 }}>{resumeError}</div>}
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={() => {
+                if (window.confirm("브라우저에 보관된 지난 작업을 지웁니다. 되돌릴 수 없습니다. 계속할까요?"))
+                  discardResume();
+              }}
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: WARN,
+                background: "none",
+                border: "none",
+                padding: "8px 4px",
+                cursor: "pointer",
+              }}
+            >
+              지우고 새로 시작
+            </button>
+            <button
+              disabled={!resumePassword || resumeBusy}
+              onClick={confirmResume}
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#fff",
+                background: !resumePassword || resumeBusy ? "#B8B4A9" : ACCENT,
+                border: "none",
+                borderRadius: 7,
+                padding: "8px 16px",
+                cursor: !resumePassword || resumeBusy ? "default" : "pointer",
+              }}
+            >
+              {resumeBusy ? "여는 중…" : "이어하기"}
+            </button>
+          </div>
+        </ModalShell>
+      )}
       {saveModal && (
         <ModalShell onClose={() => setSaveModal(false)}>
           <div
@@ -7983,8 +8215,61 @@ function GraduationCheckerInner() {
           >
             편제표, 수강신청 파일 내용, 학생 기초조사 설정·응답, 동명이인 병합, 보관, ④ 선택과목 변경, ⑤ 전입생, ⑥
             공동교육과정 입력까지 모두 한 파일(.json)로 내려받습니다. 서버에는 아무것도 저장되지 않으며, 다음에
-            ‘불러오기’로 이어서 작업할 수 있습니다.
+            ‘불러오기’로 이어서 작업할 수 있습니다. 파일 저장이 정식 저장이고, 브라우저 임시 보관은 이 컴퓨터·이
+            브라우저에서만 남습니다.
           </div>
+          {cryptoAvailable && (
+            <div
+              style={{
+                fontSize: 12.3,
+                color: MUTED,
+                background: PAPER,
+                borderRadius: 8,
+                padding: "8px 10px",
+                marginBottom: 14,
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 200 }}>
+                {keepPassword
+                  ? `이 브라우저 임시 보관: 켜짐 (비밀번호로 잠금 · ${KEEP_MAX_AGE_DAYS}일 뒤 자동 삭제)`
+                  : "이 브라우저 임시 보관: 꺼짐"}
+              </span>
+              {keepPassword ? (
+                <button
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "이 브라우저에 보관된 자료를 지우고 자동 보관을 끕니다. 화면의 작업 내용은 그대로 남습니다. 계속할까요?",
+                      )
+                    )
+                      stopKeeping();
+                  }}
+                  style={{ ...buttonStyle("ghost"), padding: "5px 10px" }}
+                >
+                  끄고 지우기
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setKeepDeclined(false);
+                    try {
+                      sessionStorage.removeItem("keepDeclined");
+                    } catch (e) {
+                      // 무시
+                    }
+                    setSaveModal(false);
+                  }}
+                  style={{ ...buttonStyle("ghost"), padding: "5px 10px" }}
+                >
+                  켜기
+                </button>
+              )}
+            </div>
+          )}
           <label
             style={{
               display: "flex",
@@ -8258,6 +8543,61 @@ function GraduationChecker() {
     <ErrorBoundary>
       <GraduationCheckerInner />
     </ErrorBoundary>
+  );
+}
+// 작업이 생기면 오른쪽 아래에 나오는 띠: 비밀번호를 정하면 이 브라우저에 자동 보관을 시작합니다
+function KeepOfferBar({ value, onChange, onKeep, onDecline }) {
+  const short = value.length > 0 && value.length < 4;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        right: 16,
+        bottom: 16,
+        zIndex: 50,
+        width: 340,
+        maxWidth: "calc(100vw - 32px)",
+        background: "#fff",
+        border: `1px solid ${ACCENT}`,
+        borderRadius: 10,
+        boxShadow: "0 6px 24px rgba(28,35,51,0.18)",
+        padding: "12px 14px",
+        fontSize: 12.5,
+        lineHeight: 1.55,
+      }}
+    >
+      <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 4 }}>이 브라우저에 임시 보관할까요?</div>
+      <div style={{ color: MUTED, marginBottom: 8 }}>
+        실수로 창을 닫아도 이어서 할 수 있게, 작업 내용을 비밀번호로 잠가 이 브라우저에 자동으로 남겨 둡니다.{" "}
+        {KEEP_MAX_AGE_DAYS}일 뒤 자동으로 지워집니다. <b style={{ color: INK }}>공용 컴퓨터라면 [안 함]</b>을 누르세요.
+      </div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          type="password"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onKeep();
+          }}
+          placeholder="비밀번호 (4자 이상)"
+          style={{ ...inputStyle, flex: 1, minWidth: 0, padding: "7px 9px", fontSize: 13 }}
+        />
+        <button
+          disabled={value.length < 4}
+          onClick={onKeep}
+          style={buttonStyle(value.length < 4 ? "disabled" : "primary", { padding: "7px 12px" })}
+        >
+          보관하기
+        </button>
+        <button
+          onClick={onDecline}
+          style={{ ...buttonStyle("ghost"), border: "none", color: MUTED, padding: "7px 8px" }}
+        >
+          안 함
+        </button>
+      </div>
+      {short && <div style={{ color: WARN, marginTop: 4 }}>4자 이상으로 정해 주세요.</div>}
+    </div>
   );
 }
 function ModalShell({ onClose, children }) {
