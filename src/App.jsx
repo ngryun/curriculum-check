@@ -12623,6 +12623,67 @@ function DeployDialogGuide() {
     </div>
   );
 }
+// 배포가 끝난 뒤 나오는 '배포가 업데이트되었습니다' 화면. [복사]가 두 개라서 아래쪽(웹 앱 URL)을 짚어 줍니다.
+function DeployDonePicture() {
+  const ring = { outline: "3px solid #D93025", outlineOffset: 2, borderRadius: 4 };
+  const cap = { fontSize: 11, color: "#5F6368", marginTop: 8 };
+  const copy = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    color: "#1A73E8",
+    fontWeight: 700,
+    fontSize: 12,
+    padding: "1px 4px",
+  };
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        maxWidth: 520,
+        border: `1px solid ${LINE}`,
+        borderRadius: 8,
+        background: "#fff",
+        fontFamily: "Roboto, Arial, sans-serif",
+        color: "#3C4043",
+        fontSize: 12,
+        padding: "12px 14px",
+      }}
+    >
+      <div style={{ fontSize: 15, color: "#202124" }}>새 배포</div>
+      <div style={{ marginTop: 6 }}>배포가 업데이트되었습니다.</div>
+      <div style={cap}>배포 ID</div>
+      <div style={{ color: "#5F6368", fontSize: 11 }}>AKfycby…zeRgA</div>
+      <div style={{ marginTop: 2 }}>
+        <span style={{ ...copy, color: "#9AA0A6", textDecoration: "line-through" }}>⧉ 복사</span>
+        <span style={{ color: "#A2452C", fontSize: 11, marginLeft: 6 }}>← 이건 아닙니다</span>
+      </div>
+      <div style={{ ...cap, fontSize: 12, color: "#202124", fontWeight: 700 }}>웹 앱</div>
+      <div style={{ ...cap, marginTop: 2 }}>URL</div>
+      <div style={{ color: "#1A73E8", fontSize: 11, wordBreak: "break-all" }}>
+        https://script.google.com/macros/s/AKfycby…/exec
+      </div>
+      <div style={{ marginTop: 4 }}>
+        <span style={{ ...copy, ...ring }}>⧉ 복사</span>
+        <span style={{ color: "#A2452C", fontSize: 11, marginLeft: 8 }}>← 이 [복사]를 누르세요</span>
+      </div>
+      <div style={{ textAlign: "right", marginTop: 10 }}>
+        <span
+          style={{
+            background: "#1A73E8",
+            color: "#fff",
+            fontWeight: 700,
+            borderRadius: 4,
+            padding: "5px 14px",
+            display: "inline-block",
+          }}
+        >
+          완료
+        </span>
+      </div>
+    </div>
+  );
+}
 // 'Google에서 확인하지 않은 앱' 화면을 실제 모습대로 그린 그림. 캡처 대신 그려서, 개발자 이메일 자리에 누구 주소가 보이는지 설명할 수 있습니다.
 function UnverifiedAppGuide() {
   const screen = {
@@ -12963,8 +13024,9 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
         {authNote}
       </InstallCheckItem>
       <InstallCheckItem no={5} done={checks.c5} onToggle={() => toggle("c5")} title="웹 앱 주소 복사하기">
-        배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec) 옆 [복사]를 눌러, 아래 5번 칸에
-        붙여넣습니다.
+        배포가 끝나면 ‘배포가 업데이트되었습니다’ 화면이 나옵니다. <b>아래쪽 ‘웹 앱 → URL’ 밑의 [복사]</b>를 눌러 (위쪽
+        ‘배포 ID’ 옆 [복사]가 아닙니다) 아래 5번 칸에 붙여넣습니다.
+        <DeployDonePicture />
       </InstallCheckItem>
       {!stale && (
         <div style={{ fontSize: 12.3, color: MUTED, lineHeight: 1.6, margin: "4px 0 8px" }}>
@@ -13106,8 +13168,10 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
             onToggle={() => toggle("t3")}
             title="웹 앱 주소를 아래 5번 칸에 붙여넣기"
           >
-            배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec) 아래 <b>[복사]</b>를 눌러, 아래 5번
-            칸에 붙여넣습니다. 이 주소는 나중에 설정을 바꿔도 그대로이고, 다시 배포할 필요가 없습니다.
+            배포가 끝나면 ‘배포가 업데이트되었습니다’ 화면이 나옵니다. <b>아래쪽 ‘웹 앱 → URL’ 밑의 [복사]</b>를 눌러
+            (위쪽 ‘배포 ID’ 옆 [복사]가 아닙니다) 아래 5번 칸에 붙여넣습니다. 이 주소는 나중에 설정을 바꿔도 그대로이고,
+            다시 배포할 필요가 없습니다.
+            <DeployDonePicture />
           </InstallCheckItem>
           <details style={{ marginTop: 4 }}>
             <summary style={{ cursor: "pointer", color: MUTED, fontSize: 12.3 }}>

@@ -1042,7 +1042,7 @@ const DEPLOY_GUIDE_HTML = String.raw`<div class="dg" id="dg">
 <li>‘유형 선택’ 옆 톱니바퀴 <b>⚙ → 웹 앱</b></li>
 <li>‘다음 사용자 인증 정보로 실행’은 <b>나</b>, ‘액세스 권한이 있는 사용자’는 <b>모든 사용자</b> (이미 골라져 있으면 그대로) → <b>[배포]</b></li>
 <li>[배포]를 누르면 <b>[액세스 승인]</b> 버튼이 나옵니다 → 누르고 내 계정 선택 → <b>아래의 경고 화면</b>이 나오면 순서대로 (처음 한 번)</li>
-<li>나온 <b>웹 앱 URL</b>(…/exec) 아래 <b>[복사]</b> → 졸업이수요건 점검 프로그램의 <b>5번 칸</b>에 붙여넣기</li>
+<li>‘배포가 업데이트되었습니다’ 화면에서 <b>아래쪽 ‘웹 앱 → URL’ 밑의 [복사]</b>를 누릅니다 (위쪽 ‘배포 ID’ 옆 [복사]가 아닙니다) → 졸업이수요건 점검 프로그램의 <b>5번 칸</b>에 붙여넣기 → [완료]</li>
 </ol>
 <div class="pic">
   <div style="display:flex;justify-content:space-between;align-items:center;color:#5F6368"><span>편집기 오른쪽 위</span><span class="ring"><span class="blue">배포 ▾</span></span></div>
@@ -1068,6 +1068,18 @@ const DEPLOY_GUIDE_HTML = String.raw`<div class="dg" id="dg">
 <li>권한 목록에서 맨 위 <b>[모두 선택]</b>(<b>Select all</b>)에 체크하고 파란 <b>[계속]</b>(<b>Continue</b>)을 누릅니다.</li>
 </ol>
 <div class="note" style="margin-top:6px">‘개발자’ 자리에는 선생님 본인의 이메일이 보입니다. 사본을 만든 순간 이 코드가 선생님 것이 되기 때문이고, ‘확인하지 않은 앱’은 구글 심사를 받지 않았다는 뜻일 뿐입니다. 이 코드는 이 시트 하나에만 접근합니다.</div>
+</div>
+<div class="pic">
+  <div style="font-size:15px;color:#202124">새 배포</div>
+  <div style="margin-top:6px">배포가 업데이트되었습니다.</div>
+  <div class="cap">배포 ID</div>
+  <div style="color:#5F6368;font-size:11px">AKfycby…zeRgA</div>
+  <div style="margin-top:2px"><span class="no" style="color:#9AA0A6;text-decoration:line-through">⧉ 복사</span> <span style="color:#A2452C;font-size:11px">← 이건 아닙니다</span></div>
+  <div class="cap" style="font-size:12px;color:#202124;font-weight:bold">웹 앱</div>
+  <div class="cap" style="margin-top:2px">URL</div>
+  <div style="color:#1A73E8;font-size:11px;word-break:break-all">https://script.google.com/macros/s/AKfycby…/exec</div>
+  <div style="margin-top:4px"><span class="ring" style="padding:1px 5px;color:#1A73E8;font-weight:bold">⧉ 복사</span> <span style="color:#A2452C;font-size:11px">← 이 [복사]를 누르세요</span></div>
+  <div style="text-align:right;margin-top:10px"><span class="blue">완료</span></div>
 </div>
 <div class="note">‘모든 사용자’를 골라야 학생이 로그인 없이 QR 코드로 바로 들어옵니다. 설정을 나중에 바꿔도 이 주소는 그대로이고, 다시 배포할 필요가 없습니다.</div>
 </div>`;
