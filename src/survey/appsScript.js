@@ -587,8 +587,12 @@ function apiFail_(r) {
   if (/Apps Script API|usersettings|SERVICE_DISABLED|has not been used/i.test(m)) {
     fail_("Apps Script API가 꺼져 있습니다. " + API_SETTINGS_URL + " 에서 ‘Google Apps Script API’를 ‘사용’으로 바꾼 뒤, 1~2분 지나 다시 눌러 주세요.");
   }
+  // 매니페스트(appsscript.json)에 배포 권한(script.projects · script.deployments)이 없어서 받은 토큰으로는 배포할 수 없는 경우
+  if (/insufficient authentication scopes|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(m)) {
+    fail_("이 시트의 Apps Script 권한 목록(appsscript.json)에 배포 권한이 없습니다. 예전 템플릿에서 사본을 만든 시트일 수 있습니다. 템플릿 사본을 새로 만들어 다시 해 보거나, Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요. (" + m + ")");
+  }
   if (r.code === 403) {
-    fail_("학교(교육청) 계정 설정 때문에 자동 배포가 막혀 있을 수 있습니다. Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요. (" + m + ")");
+    fail_("자동 배포 권한이 없습니다. 학교(교육청) 계정이라면 관리자가 막아 두었을 수 있습니다. Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요. (" + m + ")");
   }
   fail_("학생용 주소를 만들지 못했습니다 (" + r.code + "). 잠시 뒤 다시 눌러 주세요. " + m);
 }

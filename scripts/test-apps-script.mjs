@@ -197,6 +197,7 @@ function fakeApi(store, url, opts) {
   api.calls.push((opts.method || "get").toUpperCase() + " " + url.replace("https://script.googleapis.com/v1/projects/SCRIPT123", ""));
   assert.equal(opts.headers.Authorization, "Bearer TOKEN");
   const reply = (code, body) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(body) });
+  if (api.scopeError) return reply(403, { error: { code: 403, message: "Request had insufficient authentication scopes.", status: "PERMISSION_DENIED" } });
   if (!api.enabled) return reply(403, { error: { code: 403, message: "User has not enabled the Apps Script API. Enable it by visiting https://script.google.com/home/usersettings then retry.", status: "PERMISSION_DENIED" } });
   const path = url.split("/projects/SCRIPT123")[1];
   if (opts.method === "post" && path === "/versions") return reply(200, { versionNumber: ++api.version });
@@ -532,6 +533,14 @@ test("선생님이 무언가 적어 둔 시트1은 지우지 않는다", () => {
   run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
   assert.ok(st.sheets.has("시트1"));
   assert.ok(st.sheets.get("조사설정").hidden, "조사설정은 여전히 숨김");
+});
+
+
+test("자동 배포: 권한 목록(appsscript.json)에 배포 권한이 없으면 그 원인을 알려준다", () => {
+  const st = newStore();
+  st.api.scopeError = true;
+  run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
+  assert.throws(() => run(codeT, st, OWNER, "createStudentUrl"), /권한 목록\(appsscript\.json\)에 배포 권한이 없습니다/);
 });
 
 console.log(`\n${passed}개 통과`);
