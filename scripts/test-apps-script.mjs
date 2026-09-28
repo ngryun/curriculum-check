@@ -42,7 +42,7 @@ function makePayload(over = {}) {
     ],
     ...over,
   };
-  return { v: 1, ...content, fp: "v-" + fnv1aHex(JSON.stringify(content)), createdAt: "2026-09-28" };
+  return { v: 1, ...content, fp: "v-" + fnv1aHex(JSON.stringify(content)), createdAt: "2026-09-28", key: "kEyKEYkeyKEY1234567890ab" };
 }
 
 // ---- 가짜 구글 환경 ----
@@ -192,6 +192,14 @@ function makeEnv({ owner = "teacher@example.com", active = "" } = {}, store) {
       HtmlService: { createHtmlOutput: out },
       Utilities: { formatDate: () => "2026-09-28 10:00:00" },
       ScriptApp: { getScriptId: () => "SCRIPT123" },
+      ContentService: {
+        MimeType: { JSON: "json" },
+        createTextOutput: (text) => {
+          const o = { text, mime: null };
+          o.setMimeType = (mt) => ((o.mime = mt), o);
+          return o;
+        },
+      },
       Logger: { log: (m) => store.logs.push(m) },
     },
   };
@@ -456,6 +464,69 @@ test("템플릿 매니페스트: 배포 창 기본값만 있고 권한 목록은
   const m = JSON.parse(buildTemplateManifest());
   assert.deepEqual(m.webapp, { executeAs: "USER_DEPLOYING", access: "ANYONE_ANONYMOUS" });
   assert.equal(m.oauthScopes, undefined);
+});
+
+
+// ================= 응답 내보내기 (프로그램이 시트에서 바로 가져오기) =================
+test("내보내기: 열쇠가 맞을 때만 시트 내용을 엑셀과 같은 모양으로 돌려준다", () => {
+  const st = newStore();
+  run(codeA, st, STUDENT, "doGet", {});
+  run(codeA, st, STUDENT, "submitSurvey", validPick(A));
+  const { result } = run(codeA, st, STUDENT, "doGet", { parameter: { export: A.key } });
+  assert.equal(result.mime, "json");
+  const json = JSON.parse(result.text);
+  assert.equal(json.kind, "graduation-survey-export");
+  assert.deepEqual(Object.keys(json.sheets), ["선택과목", "제출기록", "설정"]);
+  assert.deepEqual(json.sheets["선택과목"][0], ["제출번호", "제출시각", "학년", "반", "번호", "이름", "학기", "선택그룹", "과목"]);
+  assert.equal(json.sheets["선택과목"].length, 1 + 3, "머리글 + 과목 3개");
+  assert.equal(json.sheets["제출기록"][1][5], "김학생");
+  assert.equal(json.sheets["설정"][4][1], A.fp, "설정 시트의 설정 버전");
+  assert.equal(json.closed, false);
+});
+
+test("내보내기: 열쇠가 틀리거나 없으면 응답을 주지 않는다", () => {
+  const st = newStore();
+  run(codeA, st, STUDENT, "doGet", {});
+  for (const bad of ["", "wrong", A.key.slice(0, -1)]) {
+    const json = JSON.parse(run(codeA, st, STUDENT, "doGet", { parameter: { export: bad } }).result.text);
+    assert.ok(json.error && !json.sheets, "거절: " + JSON.stringify(bad));
+  }
+  // 열쇠 없는 예전 설정 코드로 설치한 시트도 거절
+  const noKey = { ...A };
+  delete noKey.key;
+  const st2 = newStore();
+  run(codeT, st2, OWNER, "saveSurveyConfig", JSON.stringify(noKey), false);
+  const json2 = JSON.parse(run(codeT, st2, STUDENT, "doGet", { parameter: { export: A.key } }).result.text);
+  assert.ok(json2.error);
+});
+
+test("내보내기: 학생 화면과 설정 시트에는 열쇠가 나가지 않는다", () => {
+  const st = newStore();
+  const { result } = run(codeA, st, STUDENT, "doGet", { parameter: { ban: "1" } });
+  assert.ok(!result.html.includes(A.key), "학생 화면 HTML");
+  assert.ok(result.html.includes('"id":"' + A.id + '"'), "나머지 설정은 그대로");
+  const settings = st.sheets.get("설정").getRange(9, 2).getValue();
+  assert.ok(!String(settings).includes(A.key), "설정 시트의 조사 정보");
+  assert.ok(String(st.sheets.get("조사설정").getRange(2, 1).getValue()).includes(A.key), "숨긴 조사설정 시트에는 있음 (선생님 시트)");
+});
+
+test("내보내기: 모양이 이상한 열쇠는 없는 것으로 친다", () => {
+  const st = newStore();
+  run(codeT, st, OWNER, "saveSurveyConfig", JSON.stringify({ ...A, key: "short" }), false);
+  const json = JSON.parse(run(codeT, st, STUDENT, "doGet", { parameter: { export: "short" } }).result.text);
+  assert.ok(json.error);
+});
+
+
+test("내보내기: 같은 설정에 열쇠만 새로 붙여넣어도 열쇠가 저장된다", () => {
+  const noKey = { ...A };
+  delete noKey.key;
+  const st = newStore();
+  run(codeT, st, OWNER, "saveSurveyConfig", JSON.stringify(noKey), false);
+  assert.ok(JSON.parse(run(codeT, st, STUDENT, "doGet", { parameter: { export: A.key } }).result.text).error, "아직 열쇠 없음");
+  const { result } = run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
+  assert.equal(result.same, true);
+  assert.ok(JSON.parse(run(codeT, st, STUDENT, "doGet", { parameter: { export: A.key } }).result.text).sheets, "열쇠 저장됨");
 });
 
 console.log(`\n${passed}개 통과`);

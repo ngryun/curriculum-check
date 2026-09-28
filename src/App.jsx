@@ -4934,6 +4934,14 @@ function parseSkipNumbers(v) {
     (a, b) => a - b,
   );
 }
+// 시트가 응답을 내보낼 때 확인하는 열쇠. 설정 코드에 실려 시트로 가고, 학생 화면에는 나가지 않습니다.
+function newExportKey() {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint8Array(24);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
 function emptySurveyConfig() {
   return {
     id: newId("sv"),
@@ -4948,6 +4956,7 @@ function emptySurveyConfig() {
     copiedFp: "",
     installMethod: "",
     installChecks: {},
+    exportKey: newExportKey(),
   };
 }
 function normalizeSurveyConfig(raw) {
@@ -4979,6 +4988,10 @@ function normalizeSurveyConfig(raw) {
     deadline: str(raw.deadline, 60),
     webAppUrl: str(raw.webAppUrl, 400),
     copiedFp: str(raw.copiedFp, 40),
+    exportKey:
+      typeof raw.exportKey === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(raw.exportKey)
+        ? raw.exportKey
+        : base.exportKey,
     installMethod: ["template", "code"].includes(raw.installMethod) ? raw.installMethod : "",
     installChecks:
       raw.installChecks && typeof raw.installChecks === "object"
@@ -5065,6 +5078,7 @@ function buildSurveyPayload(config, poolDefs, opts) {
     ...content,
     fp: "v-" + fnv1aHex(JSON.stringify(content)),
     createdAt: formatDateYmd(now),
+    key: config.exportKey || undefined,
   };
 }
 function surveyProblems(payload, config, hasCurriculum) {
@@ -6276,6 +6290,58 @@ function GraduationCheckerInner() {
       }
     }
     setSurveyFiles((prev) => [...prev, ...parsed]);
+  };
+  // [구글 시트에서 지금 가져오기]: 배포한 웹 앱 주소에 열쇠를 붙여 응답을 받아옵니다. 가져온 것은 파일 하나처럼 다루되,
+  // 다시 가져오면 이전 것과 바꿉니다 (조사 중간에 여러 번 눌러도 목록이 늘어나지 않게)
+  const [surveyFetch, setSurveyFetch] = useState({ busy: false, error: "" });
+  const fetchSurveyLive = async () => {
+    const url = checkWebAppUrl(surveyConfig.webAppUrl);
+    if (!url.ok) return;
+    setSurveyFetch({ busy: true, error: "" });
+    try {
+      const res = await fetch(`${url.url}?export=${encodeURIComponent(surveyConfig.exportKey)}`, {
+        redirect: "follow",
+      });
+      if (!res.ok) throw new Error(`주소에 연결하지 못했습니다 (${res.status}).`);
+      const json = await res.json();
+      if (json && json.error) throw new Error(json.error);
+      if (!json || json.kind !== "graduation-survey-export" || !json.sheets)
+        throw new Error(
+          "응답 내보내기를 지원하지 않는 시트입니다. 시트 코드를 최신으로 바꾸고 [배포 관리 → 새 버전]으로 다시 배포해 주세요.",
+        );
+      const wb = XLSX.utils.book_new();
+      Object.keys(json.sheets).forEach((name) => {
+        XLSX.utils.book_append_sheet(
+          wb,
+          XLSX.utils.aoa_to_sheet(Array.isArray(json.sheets[name]) ? json.sheets[name] : []),
+          name,
+        );
+      });
+      const r = parseSurveyWorkbook(wb);
+      const at = String(json.at || "").slice(0, 16);
+      const entry = {
+        id: "sf-live",
+        name: `구글 시트에서 가져옴 (${at || formatDateYmd()})`,
+        addedAt: Date.now(),
+        disabled: false,
+        live: true,
+        status: "ok",
+        error: "",
+        meta: r.meta,
+        skipped: r.skipped,
+        submissions: r.submissions,
+      };
+      setSurveyFiles((prev) => [...prev.filter((f) => f.id !== "sf-live"), entry]);
+      setSurveyFetch({ busy: false, error: "" });
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      setSurveyFetch({
+        busy: false,
+        error: /fetch|network|Failed/i.test(msg)
+          ? "시트에 연결하지 못했습니다. 인터넷 연결과 5번 칸의 주소를 확인하세요. 계속 안 되면 시트에서 엑셀로 내려받아 올려 주세요."
+          : msg,
+      });
+    }
   };
   const removeSurveyFile = (id) => setSurveyFiles((prev) => prev.filter((f) => f.id !== id));
   const toggleSurveyFileDisabled = (id) =>
@@ -7697,6 +7763,8 @@ function GraduationCheckerInner() {
                 onPrintQr={printSurveyQr}
                 surveyFiles={surveyFiles}
                 onSurveyFiles={handleSurveyFiles}
+                onFetchLive={fetchSurveyLive}
+                surveyFetch={surveyFetch}
                 removeSurveyFile={removeSurveyFile}
                 surveyData={surveyData}
                 surveyChoice={surveyChoice}
@@ -13550,6 +13618,8 @@ function SurveyFileRow({ f, payload, onRemove, onToggleDisabled }) {
 function SurveyResponsesStep({
   surveyFiles,
   onFiles,
+  onFetchLive,
+  surveyFetch,
   onRemove,
   data,
   payload,
@@ -13567,6 +13637,8 @@ function SurveyResponsesStep({
   );
   const okFiles = surveyFiles.filter((f) => f.status === "ok" && !f.disabled);
   const issueCount = data.conflicts.length + data.sameName.length + data.outside.length;
+  const liveUrl = checkWebAppUrl(config.webAppUrl);
+  const liveFile = surveyFiles.find((f) => f.id === "sf-live");
   const box = {
     background: "#fff",
     border: `1px solid ${LINE}`,
@@ -13579,22 +13651,49 @@ function SurveyResponsesStep({
   return (
     <SurveyStep
       no={6}
-      title="응답 파일 올리기"
-      desc={
-        <>
-          {"\uD559\uC0DD\uB4E4\uC774 \uB0B8 \uB4A4, \uC870\uC0AC\uC6A9 \uAD6C\uAE00 \uC2DC\uD2B8\uC5D0\uC11C "}
-          <b
-            style={{
-              color: INK,
-            }}
-          >
-            파일 → 다운로드 → Microsoft Excel(.xlsx)
-          </b>
-          로 내려받아 여기에 올립니다. 조사 중간에 여러 번 올려도 됩니다 (같은 제출은 겹쳐 세지 않습니다).
-        </>
-      }
+      title="응답 가져오기"
+      desc="학생들이 낸 응답을 구글 시트에서 바로 가져옵니다. 조사 중간에 여러 번 눌러도 됩니다 (같은 제출은 겹쳐 세지 않습니다)."
     >
-      <RegFileDropzone onFiles={onFiles} label="내려받은 응답 파일(.xlsx)을 끌어다 놓거나" />
+      <div
+        style={{
+          border: `1px solid ${liveUrl.ok ? ACCENT : LINE}`,
+          background: liveUrl.ok ? ACCENT_BG : "#fff",
+          borderRadius: 10,
+          padding: "12px 14px",
+        }}
+      >
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            disabled={!liveUrl.ok || (surveyFetch && surveyFetch.busy)}
+            onClick={onFetchLive}
+            style={buttonStyle(liveUrl.ok && !(surveyFetch && surveyFetch.busy) ? "primary" : "disabled", {
+              padding: "8px 14px",
+            })}
+          >
+            {surveyFetch && surveyFetch.busy ? "가져오는 중…" : "🔄 구글 시트에서 지금 가져오기"}
+          </button>
+          <span style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.55 }}>
+            {liveUrl.ok
+              ? liveFile
+                ? `마지막으로 가져온 때: ${liveFile.name.replace(/^구글 시트에서 가져옴 \(|\)$/g, "")} · 제출 ${liveFile.submissions.length}건`
+                : "5번 칸의 웹 앱 주소로 시트에 저장된 응답을 받아옵니다. 시트를 열거나 내려받을 필요가 없습니다."
+              : "먼저 5번 칸에 웹 앱 주소를 넣어 주세요."}
+          </span>
+        </div>
+        {surveyFetch && surveyFetch.error && (
+          <div style={{ fontSize: 12.5, color: WARN, marginTop: 8, lineHeight: 1.55 }}>⚠ {surveyFetch.error}</div>
+        )}
+      </div>
+      <details style={{ marginTop: 10 }}>
+        <summary style={{ cursor: "pointer", fontSize: 12.5, color: MUTED }}>
+          다른 방법: 시트를 엑셀로 내려받아 올리기 (가져오기가 안 될 때)
+        </summary>
+        <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.6, margin: "6px 0 8px" }}>
+          조사용 구글 시트에서 <b style={{ color: INK }}>파일 → 다운로드 → Microsoft Excel(.xlsx)</b>로 내려받아 여기에
+          올립니다. 여러 번 올려도 같은 제출은 겹쳐 세지 않습니다.
+        </div>
+        <RegFileDropzone onFiles={onFiles} label="내려받은 응답 파일(.xlsx)을 끌어다 놓거나" />
+      </details>
       {surveyFiles.length > 0 && (
         <div
           style={{
@@ -14093,6 +14192,8 @@ function SurveyPanel(p) {
       <SurveyResponsesStep
         surveyFiles={p.surveyFiles}
         onFiles={p.onSurveyFiles}
+        onFetchLive={p.onFetchLive}
+        surveyFetch={p.surveyFetch}
         onRemove={p.removeSurveyFile}
         data={p.surveyData}
         payload={p.payload}
