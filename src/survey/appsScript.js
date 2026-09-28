@@ -485,143 +485,16 @@ var META_LABEL = "조사 정보(수정하지 마세요)";
 var MENU_NAME = "📋 기초조사";
 var CONFIG_CHUNK = 40000; // 시트 한 칸에는 5만 글자까지만 들어가서 나눠 적습니다
 var SEEN_PROP = "BUNDLED_SEEN";
-var DEPLOYMENT_PROP = "DEPLOYMENT_ID";
-var URL_PROP = "WEB_APP_URL";
-var API_SETTINGS_URL = "https://script.google.com/home/usersettings";
 
 var SURVEY = null; // load_()가 '조사설정' 시트에서 읽어 채웁니다
 
 // 시트를 열면 위쪽 메뉴에 [📋 기초조사]가 생깁니다.
 function onOpen() {
-  var menu = SpreadsheetApp.getUi()
+  SpreadsheetApp.getUi()
     .createMenu(MENU_NAME)
-    .addItem("설정 붙여넣기 / 바꾸기", "openConfigDialog");
-  if (AUTO_DEPLOY) menu.addItem("학생용 주소 만들기 / 보기", "openUrlDialog");
-  menu.addItem("지금 설정 보기", "showConfigSummary").addToUi();
-}
-
-function openUrlDialog() {
-  requireOwner_();
-  var html = HtmlService.createHtmlOutput(URL_DIALOG_HTML).setWidth(560).setHeight(360);
-  SpreadsheetApp.getUi().showModalDialog(html, "학생용 주소");
-}
-
-// ---- 학생용 주소 만들기 (자동 배포) ----
-// 템플릿 시트의 매니페스트(appsscript.json)에 웹 앱 설정(나 · 모든 사용자)이 들어 있어서,
-// Apps Script API로 버전을 만들고 배포하면 편집기를 열지 않아도 웹 앱 주소가 생깁니다.
-// 선생님 계정에서 'Google Apps Script API'가 켜져 있어야 합니다 (API_SETTINGS_URL, 계정마다 처음 한 번).
-function createStudentUrl() {
-  requireOwner_();
-  if (!AUTO_DEPLOY) fail_("이 시트는 자동 배포를 쓸 수 없습니다. Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요.");
-  var ss = book_();
-  load_(ss);
-  if (!SURVEY) fail_("먼저 [설정 붙여넣기]로 조사 설정을 넣어 주세요.");
-  // 구글 권한 화면은 항목마다 체크박스가 있어서, ‘모두 선택’을 하지 않으면 배포 권한이 빠진 채로 허용될 수 있습니다
-  var auth = missingScopes_();
-  if (auth) return { ok: false, needAuth: true, authUrl: auth.url };
-  var props = PropertiesService.getScriptProperties();
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(25000)) fail_("다른 작업 중입니다. 잠시 뒤 다시 눌러 주세요.");
-  try {
-    // 이미 만든 주소가 살아 있으면 그대로 씁니다 (설정은 시트에서 읽으므로 다시 배포할 필요 없음)
-    var existing = props.getProperty(DEPLOYMENT_PROP);
-    if (existing) {
-      var got = api_("get", "/deployments/" + encodeURIComponent(existing));
-      var old = got.ok ? webApp_(got.body) : null;
-      if (old) return saveUrl_(ss, old, true);
-      if (!got.ok && got.code !== 404) apiFail_(got);
-    }
-    var v = api_("post", "/versions", { description: "학생 기초조사" });
-    if (!v.ok) apiFail_(v);
-    var dep = api_("post", "/deployments", {
-      versionNumber: v.body.versionNumber,
-      manifestFileName: "appsscript",
-      description: "학생 기초조사 (자동 배포)"
-    });
-    if (!dep.ok) apiFail_(dep);
-    var app = webApp_(dep.body);
-    if (!app) fail_("배포는 됐지만 웹 앱 주소가 없습니다. 템플릿의 appsscript.json에 webapp 설정이 빠졌습니다. 제작팀에 알려 주세요.");
-    props.setProperty(DEPLOYMENT_PROP, dep.body.deploymentId);
-    return saveUrl_(ss, app, false);
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-// 매니페스트에 적힌 권한 중 선생님이 아직 허용하지 않은 것이 있으면 다시 허용하는 주소를 돌려줍니다
-function missingScopes_() {
-  try {
-    var info = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL, DEPLOY_SCOPES);
-    if (info.getAuthorizationStatus() === ScriptApp.AuthorizationStatus.REQUIRED) return { url: info.getAuthorizationUrl() };
-  } catch (e) {
-    // 권한을 확인하는 기능이 없는 환경이면 그냥 배포를 시도합니다 (실패하면 apiFail_이 안내)
-  }
-  return null;
-}
-
-function saveUrl_(ss, app, existed) {
-  PropertiesService.getScriptProperties().setProperty(URL_PROP, app.url);
-  var settings = ss.getSheetByName(SHEET_SETTINGS);
-  if (settings) settings.getRange(10, 1, 1, 2).setValues([["학생용 주소", app.url]]);
-  return { ok: true, url: app.url, existed: existed, domainOnly: app.access !== "ANYONE_ANONYMOUS" };
-}
-
-function webApp_(deployment) {
-  var eps = (deployment && deployment.entryPoints) || [];
-  for (var i = 0; i < eps.length; i++) {
-    var w = eps[i].entryPointType === "WEB_APP" && eps[i].webApp;
-    if (w && w.url) return { url: w.url, access: (w.entryPointConfig && w.entryPointConfig.access) || "" };
-  }
-  return null;
-}
-
-function api_(method, path, body) {
-  var opts = {
-    method: method,
-    headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
-    muteHttpExceptions: true
-  };
-  if (body) {
-    opts.contentType = "application/json";
-    opts.payload = JSON.stringify(body);
-  }
-  var res = UrlFetchApp.fetch("https://script.googleapis.com/v1/projects/" + ScriptApp.getScriptId() + path, opts);
-  var code = res.getResponseCode();
-  var json = {};
-  try {
-    json = JSON.parse(res.getContentText() || "{}");
-  } catch (e) {
-    json = {};
-  }
-  return { ok: code >= 200 && code < 300, code: code, body: json, message: (json.error && json.error.message) || "" };
-}
-
-function apiFail_(r) {
-  var m = r.message || "";
-  var raw = "\n\n[구글이 보낸 원래 문구] " + r.code + " " + m;
-  // 선생님 계정의 'Google Apps Script API' 스위치가 꺼져 있는 경우
-  if (/usersettings|User has not enabled the Apps Script API/i.test(m)) {
-    fail_(
-      "Apps Script API가 꺼져 있습니다. " + API_SETTINGS_URL + " 에서 ‘Google Apps Script API’를 ‘사용’으로 바꾼 뒤, 몇 분 지나 다시 눌러 주세요." +
-        " 켰는데도 이 문구가 나오면, 스위치를 켠 구글 계정과 이 시트를 연 구글 계정(" + Session.getEffectiveUser().getEmail() + ")이 같은지 확인하세요." +
-        raw
-    );
-  }
-  // 스위치와는 별개로, 이 스크립트가 붙은 구글 클라우드 프로젝트 쪽에서 Apps Script API를 쓸 수 없는 경우
-  if (/has not been used in project|SERVICE_DISABLED|console\.(developers|cloud)\.google\.com/i.test(m)) {
-    fail_(
-      "이 시트의 Apps Script가 연결된 구글 클라우드 프로젝트에서 Apps Script API를 쓸 수 없습니다. (계정 설정 스위치와는 다른 곳입니다) Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요." +
-        raw
-    );
-  }
-  // 매니페스트(appsscript.json)에 배포 권한(script.projects · script.deployments)이 없어서 받은 토큰으로는 배포할 수 없는 경우
-  if (/insufficient authentication scopes|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(m)) {
-    fail_("배포 권한이 허용되지 않았습니다. 권한 허용 화면에서 ‘모두 선택’에 체크하지 않았거나, 이 시트의 권한 목록(appsscript.json)이 예전 것일 수 있습니다. 창을 닫고 [학생용 주소 만들기]를 다시 눌러 권한을 모두 허용하거나, Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요." + raw);
-  }
-  if (r.code === 403) {
-    fail_("자동 배포 권한이 없습니다. 학교(교육청) 계정이라면 관리자가 막아 두었을 수 있습니다. Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요. (" + m + ")");
-  }
-  fail_("학생용 주소를 만들지 못했습니다 (" + r.code + "). 잠시 뒤 다시 눌러 주세요. " + m);
+    .addItem("설정 붙여넣기 / 바꾸기", "openConfigDialog")
+    .addItem("지금 설정 보기", "showConfigSummary")
+    .addToUi();
 }
 
 function openConfigDialog() {
@@ -647,7 +520,7 @@ function saveSurveyConfig(text, confirmed) {
   var ss = book_();
   var s = parseConfig_(text);
   load_(ss);
-  if (SURVEY && SURVEY.fp === s.fp) return withUrlInfo_({ ok: true, same: true, summary: summary_(s) });
+  if (SURVEY && SURVEY.fp === s.fp) return { ok: true, same: true, summary: summary_(s) };
   if (SURVEY && SURVEY.id !== s.id && !confirmed) {
     return {
       ok: false,
@@ -664,14 +537,7 @@ function saveSurveyConfig(text, confirmed) {
   } finally {
     lock.releaseLock();
   }
-  return withUrlInfo_({ ok: true, summary: summary_(s) });
-}
-
-// 설정 창이 저장 뒤에 [학생용 주소 만들기] 버튼을 보여줄지, 이미 만든 주소를 보여줄지 정하는 데 씁니다
-function withUrlInfo_(r) {
-  r.autoDeploy = !!AUTO_DEPLOY;
-  r.url = PropertiesService.getScriptProperties().getProperty(URL_PROP) || "";
-  return r;
+  return { ok: true, summary: summary_(s) };
 }
 
 // (선택) 편집기에서 시트 탭을 미리 만들어 보고 싶을 때 실행합니다. 안 해도 학생이 처음 들어올 때 자동으로 만들어집니다.
@@ -1102,105 +968,6 @@ function validate_(p) {
   return { cls: k.c, num: num, name: name, awayLabels: awayLabels.join(", "), memo: cleanText_(p.memo, 300), rows: rows, summary: summary.join(" / ") };
 }
 `;
-// 두 창(설정 붙여넣기, 학생용 주소)이 함께 쓰는 [학생용 주소 만들기] 화면 조각 (ES5)
-const DEPLOY_UI_JS = String.raw`
-var API_SETTINGS_URL = "https://script.google.com/home/usersettings";
-function clean(e) { return String((e && e.message) || e).replace(/^(Error|Exception|오류):\s*/i, ""); }
-function copyText(input, note) {
-  input.focus();
-  input.select();
-  var ok = false;
-  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-  note.textContent = ok ? "✓ 복사했습니다" : "Ctrl+C로 복사하세요";
-}
-function showUrl(box, r) {
-  box.innerHTML = "";
-  var head = document.createElement("div");
-  head.style.cssText = "background:#E7F1EA;color:#2F6D4F;padding:8px 10px;border-radius:6px;font-weight:bold";
-  head.textContent = r.existed ? "✓ 이 시트의 학생용 주소입니다." : "✓ 학생용 주소를 만들었습니다.";
-  box.appendChild(head);
-  var row = document.createElement("div");
-  row.style.cssText = "display:flex;gap:6px;margin-top:8px;align-items:center";
-  var input = document.createElement("input");
-  input.readOnly = true;
-  input.value = r.url;
-  input.style.cssText = "flex:1;min-width:0;font-size:12px;padding:6px;border:1px solid #DDD8CC;border-radius:6px";
-  input.onfocus = function () { input.select(); };
-  var btn = document.createElement("button");
-  btn.className = "primary";
-  btn.textContent = "주소 복사";
-  var note = document.createElement("span");
-  note.style.cssText = "font-size:12px;color:#2F6D4F;white-space:nowrap";
-  btn.onclick = function () { copyText(input, note); };
-  row.appendChild(input);
-  row.appendChild(btn);
-  row.appendChild(note);
-  box.appendChild(row);
-  var tip = document.createElement("div");
-  tip.style.cssText = "margin-top:8px;color:#6B7280";
-  tip.textContent = "이 주소를 졸업이수요건 점검 프로그램의 5번 칸(QR 코드 나눠주기)에 붙여넣으세요. 설정을 바꿔도 주소는 그대로입니다.";
-  box.appendChild(tip);
-  if (r.domainOnly) {
-    var warn = document.createElement("div");
-    warn.style.cssText = "margin-top:6px;color:#A2452C";
-    warn.textContent = "학교 계정이라 같은 학교 계정으로 로그인한 학생만 열 수 있습니다. 학생들이 학교 구글 계정으로 로그인한 휴대폰에서 열게 안내하세요.";
-    box.appendChild(warn);
-  }
-}
-function showAuth(box, r) {
-  box.innerHTML = "";
-  var msg = document.createElement("div");
-  msg.style.cssText = "background:#F7E9E3;color:#A2452C;padding:8px 10px;border-radius:6px;line-height:1.6";
-  msg.textContent = "학생용 주소를 만드는 데 필요한 구글 권한 중 일부가 허용되지 않았습니다. 아래 [권한 다시 허용하기]를 눌러 새 창에서 ‘모두 선택’에 체크하고 [계속]을 누른 뒤, 이 창으로 돌아와 [다시 시도]를 누르세요.";
-  box.appendChild(msg);
-  var row = document.createElement("div");
-  row.style.cssText = "display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap";
-  var a = document.createElement("a");
-  a.href = r.authUrl;
-  a.target = "_blank";
-  a.textContent = "권한 다시 허용하기 ↗";
-  a.style.cssText = "font-weight:bold";
-  var again = document.createElement("button");
-  again.textContent = "다시 시도";
-  again.onclick = function () { makeUrl(box); };
-  row.appendChild(a);
-  row.appendChild(again);
-  box.appendChild(row);
-}
-function makeUrl(box) {
-  box.innerHTML = "";
-  var wait = document.createElement("div");
-  wait.textContent = "학생용 주소를 만드는 중… (10초쯤 걸릴 수 있어요)";
-  box.appendChild(wait);
-  google.script.run
-    .withSuccessHandler(function (r) {
-      if (r && r.needAuth) showAuth(box, r);
-      else showUrl(box, r);
-    })
-    .withFailureHandler(function (e) {
-      box.innerHTML = "";
-      var err = document.createElement("div");
-      err.style.cssText = "background:#F7E9E3;color:#A2452C;padding:8px 10px;border-radius:6px;white-space:pre-wrap";
-      err.textContent = clean(e);
-      box.appendChild(err);
-      var row = document.createElement("div");
-      row.style.cssText = "display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap";
-      if (clean(e).indexOf("usersettings") >= 0) {
-        var a = document.createElement("a");
-        a.href = API_SETTINGS_URL;
-        a.target = "_blank";
-        a.textContent = "Apps Script API 설정 열기 ↗";
-        row.appendChild(a);
-      }
-      var again = document.createElement("button");
-      again.textContent = "다시 시도";
-      again.onclick = function () { makeUrl(box); };
-      row.appendChild(again);
-      box.appendChild(row);
-    })
-    .createStudentUrl();
-}
-`;
 // 시트 메뉴 [기초조사 → 설정 붙여넣기]가 여는 창. 구글 시트 안에서 도는 화면이라 오래된 문법(ES5)만 씁니다.
 const CONFIG_DIALOG_HTML = String.raw`<!DOCTYPE html><html><head><base target="_top"><meta charset="utf-8">
 <style>
@@ -1222,9 +989,7 @@ button:disabled{opacity:.5;cursor:default}
 <textarea id="t" placeholder="여기에 붙여넣기 (Ctrl+V)"></textarea>
 <div class="row"><button id="save" class="primary">저장</button><button id="close">닫기</button><span id="more"></span></div>
 <div id="msg"></div>
-<div id="url" style="margin-top:10px"></div>
 <script>
-/*__DEPLOY_UI__*/
 var t = document.getElementById("t");
 var btn = document.getElementById("save");
 var msg = document.getElementById("msg");
@@ -1246,18 +1011,6 @@ function save(confirmed) {
         return;
       }
       show("ok", (r.same ? "✓ 이미 같은 설정이 들어 있습니다." : "✓ 저장했습니다. 다시 배포하지 않아도 학생 화면에 바로 반영됩니다.") + "\n\n" + r.summary);
-      if (r.autoDeploy) {
-        var box = document.getElementById("url");
-        if (r.url) showUrl(box, { url: r.url, existed: true });
-        else {
-          box.innerHTML = "";
-          var mk = document.createElement("button");
-          mk.className = "primary";
-          mk.textContent = "다음: 학생용 주소 만들기";
-          mk.onclick = function () { makeUrl(box); };
-          box.appendChild(mk);
-        }
-      }
     })
     .withFailureHandler(function (e) {
       btn.disabled = false;
@@ -1269,27 +1022,7 @@ btn.onclick = function () { save(false); };
 document.getElementById("close").onclick = function () { google.script.host.close(); };
 t.focus();
 <\/script>
-</body></html>`
-  .replace("<\\/script>", "</scr" + "ipt>") // 이 프로그램 페이지(빌드된 index.html) 안에 스크립트 닫는 태그가 그대로 있으면 안 됩니다
-  .replace("/*__DEPLOY_UI__*/", () => DEPLOY_UI_JS);
-// 메뉴 [기초조사 → 학생용 주소 만들기 / 보기]가 여는 창 — 열리자마자 주소를 만들거나 이미 만든 주소를 보여줍니다
-const URL_DIALOG_HTML = String.raw`<!DOCTYPE html><html><head><base target="_top"><meta charset="utf-8">
-<style>
-body{font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;font-size:13px;line-height:1.6;color:#1C2333;margin:0;padding:2px}
-button{padding:7px 16px;font-size:13px;border-radius:6px;border:1px solid #DDD8CC;background:#fff;cursor:pointer}
-button.primary{background:#2C5A8A;border-color:#2C5A8A;color:#fff;font-weight:bold}
-button:disabled{opacity:.5;cursor:default}
-</style></head><body>
-<div id="url"></div>
-<div style="margin-top:12px"><button id="close">닫기</button></div>
-<script>
-/*__DEPLOY_UI__*/
-document.getElementById("close").onclick = function () { google.script.host.close(); };
-makeUrl(document.getElementById("url"));
-<\/script>
-</body></html>`
-  .replace("<\\/script>", "</scr" + "ipt>")
-  .replace("/*__DEPLOY_UI__*/", () => DEPLOY_UI_JS);
+</body></html>`.replace("<\\/script>", "</scr" + "ipt>"); // 이 프로그램 페이지(빌드된 index.html) 안에 스크립트 닫는 태그가 그대로 있으면 안 됩니다
 // 설정을 아직 넣지 않은 시트의 웹 앱 주소를 열었을 때 보이는 화면
 const NOT_READY_HTML = String.raw`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
 <style>body{font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;background:#F6F4EF;color:#1C2333;margin:0;padding:32px 18px;line-height:1.7}
@@ -1304,9 +1037,6 @@ function appsScriptCommon() {
     // 학생 화면의 제목은 doGet이 조사 이름으로 바꿔 달아서, 코드 안의 화면은 조사와 상관없이 같습니다
     "var PAGE_HTML = " + JSON.stringify(buildStudentPageTemplate("기초조사")) + ";",
     "var CONFIG_DIALOG_HTML = " + JSON.stringify(CONFIG_DIALOG_HTML) + ";",
-    "var URL_DIALOG_HTML = " + JSON.stringify(URL_DIALOG_HTML) + ";",
-    // [학생용 주소 만들기] 전에 허용됐는지 확인할 권한 (템플릿 매니페스트와 같은 목록)
-    "var DEPLOY_SCOPES = " + JSON.stringify(TEMPLATE_MANIFEST.oauthScopes) + ";",
     "var NOT_READY_HTML = " + JSON.stringify(NOT_READY_HTML) + ";",
     SURVEY_SERVER_CODE,
   ];
@@ -1324,8 +1054,6 @@ function buildAppsScriptCode(payload) {
     "// 이 코드는 이 구글 시트 하나에만 접근하며(@OnlyCurrentDoc), 학생이 낸 내용은 이 시트에만 저장됩니다.",
     "",
     "var BUNDLED_SURVEY = " + JSON.stringify(payload) + ";",
-    // 붙여넣은 코드는 매니페스트(웹 앱 설정·권한 목록)를 바꿀 수 없어서 자동 배포를 쓰지 않습니다
-    "var AUTO_DEPLOY = false;",
     ...appsScriptCommon(),
   ].join(NL);
 }
@@ -1336,34 +1064,12 @@ function buildTemplateAppsScriptCode() {
     "/** @OnlyCurrentDoc */",
     "// 졸업이수요건 점검 프로그램 — 학생 기초조사 템플릿 코드 (이 시트의 사본을 만들어 쓰세요)",
     "// 사용법: ① 시트 위 메뉴 [📋 기초조사 → 설정 붙여넣기]에 프로그램에서 복사한 설정 코드를 넣기",
-    "//        ② 저장한 창에서 [학생용 주소 만들기] (Apps Script API가 켜져 있어야 함: https://script.google.com/home/usersettings)",
-    "//        ③ 나온 주소를 프로그램에 붙여넣기. 자동 배포가 안 되면 [배포 → 새 배포 → 웹 앱] 실행: 나 · 액세스: 모든 사용자로 직접 배포",
-    "// 매니페스트(appsscript.json)는 apps-script/appsscript.json과 같아야 합니다 (웹 앱 설정과 권한 목록).",
+    "//        ② [확장 프로그램 → Apps Script → 배포 → 새 배포 → 웹 앱] 실행: 나 · 액세스 권한: 모든 사용자 → [배포] → 웹 앱 URL을 프로그램에 붙여넣기",
     "// 이 코드는 이 구글 시트 하나에만 접근하며(@OnlyCurrentDoc), 학생이 낸 내용은 이 시트에만 저장됩니다.",
     "",
     "var BUNDLED_SURVEY = null;",
-    "var AUTO_DEPLOY = true;",
     ...appsScriptCommon(),
   ].join(NL);
-}
-// 템플릿 시트의 매니페스트 — 웹 앱 설정(나 · 모든 사용자)이 들어 있어야 [학생용 주소 만들기]가 웹 앱을 배포할 수 있고,
-// 권한 목록을 직접 적으면 @OnlyCurrentDoc 대신 여기 적힌 권한만 씁니다. 코드에 새 구글 서비스를 쓰면 여기에도 더해야 합니다.
-const TEMPLATE_MANIFEST = {
-  timeZone: "Asia/Seoul",
-  runtimeVersion: "V8",
-  exceptionLogging: "STACKDRIVER",
-  webapp: { executeAs: "USER_DEPLOYING", access: "ANYONE_ANONYMOUS" },
-  oauthScopes: [
-    "https://www.googleapis.com/auth/spreadsheets.currentonly", // 이 시트 하나만
-    "https://www.googleapis.com/auth/script.container.ui", // 시트 메뉴와 창
-    "https://www.googleapis.com/auth/userinfo.email", // 설정 창을 시트 주인만 쓰게 확인
-    "https://www.googleapis.com/auth/script.external_request", // Apps Script API 호출
-    "https://www.googleapis.com/auth/script.projects", // 버전 만들기
-    "https://www.googleapis.com/auth/script.deployments", // 웹 앱 배포
-  ],
-};
-function buildTemplateManifest() {
-  return JSON.stringify(TEMPLATE_MANIFEST, null, 2);
 }
 // [설정 코드 복사]: 시트 메뉴 [설정 붙여넣기]에 넣는 글
 function buildSurveyConfigCode(payload) {
@@ -1375,8 +1081,6 @@ export {
   buildAppsScriptCode,
   buildTemplateAppsScriptCode,
   buildSurveyConfigCode,
-  buildTemplateManifest,
   SURVEY_SERVER_CODE,
   CONFIG_DIALOG_HTML,
-  URL_DIALOG_HTML,
 };
