@@ -12684,6 +12684,58 @@ function DeployDonePicture() {
     </div>
   );
 }
+// 사본 시트 위쪽 메뉴에 생기는 [📋 기초조사] 메뉴를 연 모습. 첫 번째 항목을 누르라고 짚어 줍니다.
+function SheetMenuPicture() {
+  const ring = { outline: "3px solid #D93025", outlineOffset: 2, borderRadius: 4 };
+  const item = { padding: "7px 14px", fontSize: 12.5, color: "#202124", whiteSpace: "nowrap" };
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        maxWidth: 520,
+        border: `1px solid ${LINE}`,
+        borderRadius: 8,
+        background: "#fff",
+        fontFamily: "Roboto, Arial, sans-serif",
+        color: "#3C4043",
+        fontSize: 12.5,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{ display: "flex", gap: 14, padding: "8px 12px", borderBottom: "1px solid #DADCE0", color: "#202124" }}
+      >
+        <span>파일</span>
+        <span>수정</span>
+        <span>보기</span>
+        <span>삽입</span>
+        <span style={{ color: "#9AA0A6" }}>…</span>
+        <span>확장 프로그램</span>
+        <span>도움말</span>
+        <span style={{ ...ring, background: "#E8F0FE", padding: "0 6px", fontWeight: 700 }}>📋 기초조사</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 12px 10px" }}>
+        <div
+          style={{
+            border: "1px solid #DADCE0",
+            borderRadius: 6,
+            boxShadow: "0 2px 6px rgba(0,0,0,.15)",
+            padding: "4px 0",
+            background: "#fff",
+          }}
+        >
+          <div style={{ ...item, ...ring, margin: "4px 8px", fontWeight: 700 }}>설정 붙여넣기 / 바꾸기</div>
+          <div style={item}>배포(학생용 주소 만들기) 안내</div>
+          <div style={item}>지금 설정 보기</div>
+        </div>
+      </div>
+      <div style={{ padding: "6px 12px 10px", fontSize: 12, color: MUTED, lineHeight: 1.6 }}>
+        메뉴는 시트가 열리고 몇 초 뒤 <b>도움말 오른쪽</b>에 생깁니다. 안 보이면 새로고침(F5)하세요. 첫
+        화면(시작하기)에도 같은 안내가 적혀 있습니다.
+      </div>
+    </div>
+  );
+}
 // 'Google에서 확인하지 않은 앱' 화면을 실제 모습대로 그린 그림. 캡처 대신 그려서, 개발자 이메일 자리에 누구 주소가 보이는지 설명할 수 있습니다.
 function UnverifiedAppGuide() {
   const screen = {
@@ -13146,6 +13198,7 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
                 나옵니다)
               </li>
             </ol>
+            <SheetMenuPicture />
             처음 한 번은 ‘승인 필요’ 창이 뜹니다 → <b>[계속]</b> → 내 계정 선택 → ‘확인하지 않은 앱’ 화면에서{" "}
             <b>[고급]</b> → <b>(프로젝트 이름)(으)로 이동</b> → <b>[모두 선택]</b> 체크 → <b>[계속]</b>.
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
