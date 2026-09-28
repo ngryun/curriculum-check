@@ -516,6 +516,9 @@ function createStudentUrl() {
   var ss = book_();
   load_(ss);
   if (!SURVEY) fail_("먼저 [설정 붙여넣기]로 조사 설정을 넣어 주세요.");
+  // 구글 권한 화면은 항목마다 체크박스가 있어서, ‘모두 선택’을 하지 않으면 배포 권한이 빠진 채로 허용될 수 있습니다
+  var auth = missingScopes_();
+  if (auth) return { ok: false, needAuth: true, authUrl: auth.url };
   var props = PropertiesService.getScriptProperties();
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) fail_("다른 작업 중입니다. 잠시 뒤 다시 눌러 주세요.");
@@ -543,6 +546,17 @@ function createStudentUrl() {
   } finally {
     lock.releaseLock();
   }
+}
+
+// 매니페스트에 적힌 권한 중 선생님이 아직 허용하지 않은 것이 있으면 다시 허용하는 주소를 돌려줍니다
+function missingScopes_() {
+  try {
+    var info = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL, DEPLOY_SCOPES);
+    if (info.getAuthorizationStatus() === ScriptApp.AuthorizationStatus.REQUIRED) return { url: info.getAuthorizationUrl() };
+  } catch (e) {
+    // 권한을 확인하는 기능이 없는 환경이면 그냥 배포를 시도합니다 (실패하면 apiFail_이 안내)
+  }
+  return null;
 }
 
 function saveUrl_(ss, app, existed) {
@@ -602,7 +616,7 @@ function apiFail_(r) {
   }
   // 매니페스트(appsscript.json)에 배포 권한(script.projects · script.deployments)이 없어서 받은 토큰으로는 배포할 수 없는 경우
   if (/insufficient authentication scopes|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(m)) {
-    fail_("이 시트의 Apps Script 권한 목록(appsscript.json)에 배포 권한이 없습니다. 예전 템플릿에서 사본을 만든 시트일 수 있습니다. 템플릿 사본을 새로 만들어 다시 해 보거나, Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요. (" + m + ")");
+    fail_("배포 권한이 허용되지 않았습니다. 권한 허용 화면에서 ‘모두 선택’에 체크하지 않았거나, 이 시트의 권한 목록(appsscript.json)이 예전 것일 수 있습니다. 창을 닫고 [학생용 주소 만들기]를 다시 눌러 권한을 모두 허용하거나, Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요." + raw);
   }
   if (r.code === 403) {
     fail_("자동 배포 권한이 없습니다. 학교(교육청) 계정이라면 관리자가 막아 두었을 수 있습니다. Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요. (" + m + ")");
@@ -1133,13 +1147,36 @@ function showUrl(box, r) {
     box.appendChild(warn);
   }
 }
+function showAuth(box, r) {
+  box.innerHTML = "";
+  var msg = document.createElement("div");
+  msg.style.cssText = "background:#F7E9E3;color:#A2452C;padding:8px 10px;border-radius:6px;line-height:1.6";
+  msg.textContent = "학생용 주소를 만드는 데 필요한 구글 권한 중 일부가 허용되지 않았습니다. 아래 [권한 다시 허용하기]를 눌러 새 창에서 ‘모두 선택’에 체크하고 [계속]을 누른 뒤, 이 창으로 돌아와 [다시 시도]를 누르세요.";
+  box.appendChild(msg);
+  var row = document.createElement("div");
+  row.style.cssText = "display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap";
+  var a = document.createElement("a");
+  a.href = r.authUrl;
+  a.target = "_blank";
+  a.textContent = "권한 다시 허용하기 ↗";
+  a.style.cssText = "font-weight:bold";
+  var again = document.createElement("button");
+  again.textContent = "다시 시도";
+  again.onclick = function () { makeUrl(box); };
+  row.appendChild(a);
+  row.appendChild(again);
+  box.appendChild(row);
+}
 function makeUrl(box) {
   box.innerHTML = "";
   var wait = document.createElement("div");
   wait.textContent = "학생용 주소를 만드는 중… (10초쯤 걸릴 수 있어요)";
   box.appendChild(wait);
   google.script.run
-    .withSuccessHandler(function (r) { showUrl(box, r); })
+    .withSuccessHandler(function (r) {
+      if (r && r.needAuth) showAuth(box, r);
+      else showUrl(box, r);
+    })
     .withFailureHandler(function (e) {
       box.innerHTML = "";
       var err = document.createElement("div");
@@ -1268,6 +1305,8 @@ function appsScriptCommon() {
     "var PAGE_HTML = " + JSON.stringify(buildStudentPageTemplate("기초조사")) + ";",
     "var CONFIG_DIALOG_HTML = " + JSON.stringify(CONFIG_DIALOG_HTML) + ";",
     "var URL_DIALOG_HTML = " + JSON.stringify(URL_DIALOG_HTML) + ";",
+    // [학생용 주소 만들기] 전에 허용됐는지 확인할 권한 (템플릿 매니페스트와 같은 목록)
+    "var DEPLOY_SCOPES = " + JSON.stringify(TEMPLATE_MANIFEST.oauthScopes) + ";",
     "var NOT_READY_HTML = " + JSON.stringify(NOT_READY_HTML) + ";",
     SURVEY_SERVER_CODE,
   ];

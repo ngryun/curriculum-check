@@ -184,7 +184,19 @@ function makeEnv({ owner = "teacher@example.com", active = "" } = {}, store) {
       },
       HtmlService: { createHtmlOutput: out },
       Utilities: { formatDate: () => "2026-09-28 10:00:00" },
-      ScriptApp: { getScriptId: () => "SCRIPT123", getOAuthToken: () => "TOKEN" },
+      ScriptApp: {
+        getScriptId: () => "SCRIPT123",
+        getOAuthToken: () => "TOKEN",
+        AuthMode: { FULL: "FULL" },
+        AuthorizationStatus: { REQUIRED: "REQUIRED", NOT_REQUIRED: "NOT_REQUIRED" },
+        getAuthorizationInfo: (mode, scopes) => {
+          store.api.checkedScopes = scopes;
+          return {
+            getAuthorizationStatus: () => (store.api.missingScopes ? "REQUIRED" : "NOT_REQUIRED"),
+            getAuthorizationUrl: () => "https://script.google.com/macros/d/SCRIPT123/authorize",
+          };
+        },
+      },
       UrlFetchApp: { fetch: (url, opts) => fakeApi(store, url, opts) },
       encodeURIComponent,
       Logger: { log: (m) => store.logs.push(m) },
@@ -541,7 +553,7 @@ test("자동 배포: 권한 목록(appsscript.json)에 배포 권한이 없으�
   const st = newStore();
   st.api.scopeError = true;
   run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
-  assert.throws(() => run(codeT, st, OWNER, "createStudentUrl"), /권한 목록\(appsscript\.json\)에 배포 권한이 없습니다/);
+  assert.throws(() => run(codeT, st, OWNER, "createStudentUrl"), /배포 권한이 허용되지 않았습니다.*모두 선택/);
 });
 
 
@@ -554,6 +566,22 @@ test("자동 배포: 계정 스위치와 클라우드 프로젝트 쪽 API 꺼�
   st2.api.enabled = false;
   run(codeT, st2, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
   assert.throws(() => run(codeT, st2, OWNER, "createStudentUrl"), (e) => /teacher@example\.com/.test(e.message) && /원래 문구\]/.test(e.message));
+});
+
+
+test("자동 배포: 권한 화면에서 일부만 허용했으면 배포하지 않고 다시 허용할 주소를 준다", () => {
+  const st = newStore();
+  st.api.missingScopes = true;
+  run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
+  const { result } = run(codeT, st, OWNER, "createStudentUrl");
+  assert.equal(result.needAuth, true);
+  assert.match(result.authUrl, /authorize/);
+  assert.equal(st.api.calls.length, 0, "API를 부르지 않음");
+  assert.equal(JSON.stringify(st.api.checkedScopes), JSON.stringify(JSON.parse(buildTemplateManifest()).oauthScopes));
+  st.api.missingScopes = false;
+  assert.equal(run(codeT, st, OWNER, "createStudentUrl").result.ok, true, "허용한 뒤 다시 시도하면 됨");
+  run(codeT, st, OWNER, "openUrlDialog");
+  assert.ok(st.dialogs.at(-1).html.includes("권한 다시 허용하기"));
 });
 
 console.log(`\n${passed}개 통과`);

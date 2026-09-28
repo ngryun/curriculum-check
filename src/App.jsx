@@ -12606,8 +12606,53 @@ function UnverifiedAppGuide() {
         <div style={label}>
           <span style={badge}>3</span>
           <span>
-            권한 목록이 나오면 맨 아래 파란 <span style={{ color: "#D93025" }}>[허용]</span>을 누르세요.
+            권한 목록이 나오면 맨 위 <span style={{ color: "#D93025" }}>[모두 선택]</span>에 꼭 체크하고 파란{" "}
+            <span style={{ color: "#D93025" }}>[계속]</span>을 누르세요. 하나라도 빠지면 학생용 주소를 만들 수 없습니다.
           </span>
+        </div>
+        <div style={{ ...screen, maxWidth: 520, fontSize: 12.5, lineHeight: 1.6 }}>
+          <div style={{ marginBottom: 8 }}>학생 기초조사에서 액세스할 수 있는 항목을 선택하세요.</div>
+          <span style={ring}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 4px", fontWeight: 700 }}>
+              <span
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 3,
+                  background: "#1A73E8",
+                  color: "#fff",
+                  fontSize: 11,
+                  lineHeight: "14px",
+                  textAlign: "center",
+                }}
+              >
+                ✓
+              </span>
+              모두 선택
+            </span>
+          </span>
+          <div style={{ color: MUTED, margin: "8px 0 0 24px" }}>
+            ☑ 이 애플리케이션이 설치된 스프레드시트 보기 및 관리
+            <br />☑ Google Apps Script 프로젝트 만들기 및 업데이트
+            <br />☑ Google Apps Script 배포 만들기 및 업데이트 …
+          </div>
+          <div style={{ textAlign: "right", marginTop: 10 }}>
+            <span style={ring}>
+              <span
+                style={{
+                  background: "#1A73E8",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  borderRadius: 4,
+                  padding: "5px 12px",
+                  display: "inline-block",
+                }}
+              >
+                계속
+              </span>
+            </span>
+          </div>
         </div>
       </div>
       <div style={{ fontSize: 12.3, color: MUTED, lineHeight: 1.6 }}>
@@ -12885,7 +12930,7 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
               </li>
             </ol>
             처음 한 번은 ‘승인 필요’ 창이 뜹니다 → <b>[계속]</b> → 내 계정 선택 → ‘확인하지 않은 앱’ 화면에서{" "}
-            <b>[고급]</b> → <b>(프로젝트 이름)(으)로 이동</b> → <b>[허용]</b>. (아래 그림)
+            <b>[고급]</b> → <b>(프로젝트 이름)(으)로 이동</b> → <b>[모두 선택]</b> 체크 → <b>[계속]</b>. (아래 그림)
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
               {copyConfigButton}
               {copyNote("config")}
@@ -12958,7 +13003,7 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
           <InstallCheckItem no={4} done={checks.c4} onToggle={() => toggle("c4")} title="웹 앱으로 배포하기">
             {deployText}
             처음 한 번은 <b>[액세스 승인]</b> → 내 계정 선택 → ‘확인하지 않은 앱’ 화면에서 <b>[고급]</b> →{" "}
-            <b>(프로젝트 이름)(으)로 이동</b> → <b>[허용]</b> 순서로 이어집니다. (아래 그림)
+            <b>(프로젝트 이름)(으)로 이동</b> → <b>[모두 선택]</b> 체크 → <b>[계속]</b> 순서로 이어집니다. (아래 그림)
             {authNote}
           </InstallCheckItem>
           <InstallCheckItem no={5} done={checks.c5} onToggle={() => toggle("c5")} title="웹 앱 주소 복사하기">
