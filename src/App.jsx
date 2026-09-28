@@ -12464,7 +12464,7 @@ function templateCopyUrl(raw) {
   return m ? `https://docs.google.com/spreadsheets/d/${m[1]}/copy` : null;
 }
 const SURVEY_INSTALL_STEPS = {
-  template: ["t1", "t2", "t3", "t4"],
+  template: ["t1", "t5", "t6"],
   code: ["c1", "c2", "c3", "c4", "c5"],
 };
 function InstallCheckItem({ no, done, onToggle, title, children }) {
@@ -12549,7 +12549,7 @@ function UnverifiedAppGuide() {
       </div>
       <div style={{ fontSize: 12.3, color: MUTED, lineHeight: 1.6, marginTop: 8 }}>
         ‘확인하지 않은 앱’은 구글 심사를 받지 않았다는 뜻일 뿐, 선생님 계정에서 선생님이 만든(복사한) 코드입니다. 이 코드는{" "}
-        <b style={{ color: INK }}>이 시트 하나에만</b> 접근하고(@OnlyCurrentDoc), 다른 파일·메일·드라이브는 볼 수 없습니다. (이메일 주소 권한은 설정 창을 시트 주인만 열 수 있는지 확인하는 데만 씁니다.)
+        <b style={{ color: INK }}>이 시트 하나에만</b> 접근하고(@OnlyCurrentDoc), 다른 파일·메일·드라이브는 볼 수 없습니다. (이메일 주소 권한은 설정 창을 시트 주인만 열 수 있는지 확인하는 데만, Apps Script 프로젝트·배포 관리 권한은 [학생용 주소 만들기]가 이 시트의 코드를 웹 앱으로 배포하는 데만 씁니다.)
         권한 허용은 처음 한 번만 하면 됩니다.
       </div>
     </div>
@@ -12765,24 +12765,52 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
               </a>
             </div>
           </InstallCheckItem>
-          <InstallCheckItem no={2} done={checks.t2} onToggle={() => toggle("t2")} title="조사 설정 넣기">
-            <b>[설정 코드 복사]</b>를 누른 뒤, 사본 시트 위 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>를 열어 Ctrl+V로 붙여넣고{" "}
-            <b>[저장]</b>합니다. 메뉴는 시트가 열리고 몇 초 뒤에 생깁니다. 안 보이면 새로고침하세요. 처음 한 번은 ‘승인 필요’ 창이
-            뜹니다 → <b>[계속]</b> → 내 계정 선택 → 권한 <b>허용</b>.
+          <InstallCheckItem no={2} done={checks.t5} onToggle={() => toggle("t5")} title="Apps Script API 켜기 (계정마다 처음 한 번)">
+            아래 버튼으로 구글 설정 화면을 열고 <b>Google Apps Script API</b> 옆 스위치를 눌러 <b>‘사용’</b>으로 바꿉니다. 이
+            스위치가 켜져 있어야 시트 메뉴 버튼 하나로 학생용 주소를 만들 수 있습니다. 전에 켠 적이 있으면 건너뛰세요.
+            <div style={{ marginTop: 6 }}>
+              <a
+                href="https://script.google.com/home/usersettings"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ ...buttonStyle("ghost", { padding: "7px 13px" }), textDecoration: "none" }}
+              >
+                ⚙ Apps Script API 설정 열기 ↗
+              </a>
+            </div>
+          </InstallCheckItem>
+          <InstallCheckItem no={3} done={checks.t6} onToggle={() => toggle("t6")} title="설정 넣고 학생용 주소 만들기">
+            <ol style={{ margin: "2px 0 0", paddingLeft: 18 }}>
+              <li style={li}>
+                <b>[설정 코드 복사]</b>를 누릅니다.
+              </li>
+              <li style={li}>
+                사본 시트 위 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>를 열어 Ctrl+V로 붙여넣고 <b>[저장]</b>합니다. 메뉴는 시트가
+                열리고 몇 초 뒤에 생깁니다. 안 보이면 새로고침하세요.
+              </li>
+              <li style={li}>
+                같은 창에 나오는 <b>[다음: 학생용 주소 만들기]</b>를 누르고, 나온 주소를 <b>[주소 복사]</b>해서 아래 5번 칸에
+                붙여넣습니다.
+              </li>
+            </ol>
+            처음 한 번은 ‘승인 필요’ 창이 뜹니다 → <b>[계속]</b> → 내 계정 선택 → 권한 <b>허용</b>.
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
               {copyConfigButton}
               {copyNote("config")}
             </div>
             {textBox("config")}
             {authNote}
-          </InstallCheckItem>
-          <InstallCheckItem no={3} done={checks.t3} onToggle={() => toggle("t3")} title="웹 앱으로 배포하기">
-            사본 시트 위 메뉴 <b>[확장 프로그램 → Apps Script]</b>를 누르면 편집기가 열립니다. 코드는 이미 들어 있으니 고치지
-            마세요.
-            {deployText}
-          </InstallCheckItem>
-          <InstallCheckItem no={4} done={checks.t4} onToggle={() => toggle("t4")} title="웹 앱 주소 복사하기">
-            배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec) 옆 [복사]를 눌러, 아래 5번 칸에 붙여넣습니다.
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", color: ACCENT, fontWeight: 700, fontSize: 12.5 }}>
+                [학생용 주소 만들기]가 안 될 때 (학교 계정 등): 직접 배포하기
+              </summary>
+              <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.65, marginTop: 4 }}>
+                사본 시트 위 메뉴 <b>[확장 프로그램 → Apps Script]</b>를 누르면 편집기가 열립니다. 코드는 이미 들어 있으니
+                고치지 마세요.
+                {deployText}
+                배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec)을 복사해 아래 5번 칸에 붙여넣습니다.
+              </div>
+            </details>
           </InstallCheckItem>
         </div>
       ) : (
@@ -12860,6 +12888,14 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
           학교 구글 워크스페이스 계정은 관리자 설정 때문에 ‘모든 사용자’를 고를 수 없을 수 있습니다. 이때는{" "}
           <b>‘(학교 도메인) 내 모든 사용자’</b>로 배포하고, 학생들이 <b>학교 구글 계정으로 로그인한 휴대폰</b>에서 QR 코드를
           열게 안내하세요. 학생이 개인 계정만 쓴다면 개인 구글 계정으로 시트를 만들어 설치하는 편이 쉽습니다.
+        </SurveyHelpItem>
+        <SurveyHelpItem title="[학생용 주소 만들기]에서 ‘Apps Script API가 꺼져 있습니다’가 나와요">
+          <a href="https://script.google.com/home/usersettings" target="_blank" rel="noopener noreferrer">
+            Apps Script API 설정
+          </a>
+          에서 <b>Google Apps Script API</b>를 ‘사용’으로 바꾼 뒤, 1~2분 기다렸다가 창의 <b>[다시 시도]</b>를 누르세요. 스위치를 켠 구글
+          계정과 시트를 연 구글 계정이 같은지도 확인하세요. 학교 계정에서 계속 막히면 관리자가 막아 둔 것이니 ‘직접 배포하기’를
+          따라 하세요.
         </SurveyHelpItem>
         <SurveyHelpItem title="학생이 QR 코드로 열었더니 구글 로그인 화면이 나와요">
           배포할 때 ‘액세스 권한이 있는 사용자’를 <b>모든 사용자</b>로 하지 않은 경우입니다. Apps Script 편집기에서{" "}
