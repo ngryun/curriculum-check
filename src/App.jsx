@@ -13643,13 +13643,12 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
             </div>
             {textBox("config")}
             {authNote}
-            <details style={{ marginTop: 8 }}>
-              <summary style={{ cursor: "pointer", color: ACCENT, fontWeight: 700, fontSize: 12.5 }}>
-                배포 창은 이렇게 생겼습니다 (그림으로 보기)
-              </summary>
-              {deployText}
-              <DeployDialogGuide />
-            </details>
+            <div style={{ marginTop: 10, fontWeight: 800, fontSize: 13 }}>배포 창은 이렇게 생겼습니다</div>
+            <div style={{ fontSize: 12.5, color: MUTED, marginTop: 2 }}>
+              시트 창에는 순서만 짧게 적혀 있습니다. 화면이 낯설면 아래 그림과 맞춰 보세요.
+            </div>
+            {deployText}
+            <DeployDialogGuide />
           </InstallCheckItem>
           <InstallCheckItem
             no={3}

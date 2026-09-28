@@ -534,8 +534,8 @@ function ensureStartSheet_(ss) {
 function openDeployDialog() {
   requireOwner_();
   var html = HtmlService.createHtmlOutput(DEPLOY_DIALOG_HTML.replace("/*__EDITOR__*/null", function () { return JSON.stringify(editorUrl_()); }))
-    .setWidth(600)
-    .setHeight(620);
+    .setWidth(560)
+    .setHeight(420);
   SpreadsheetApp.getUi().showModalDialog(html, "배포 — 학생용 주소 만들기");
 }
 
@@ -1066,67 +1066,22 @@ const DEPLOY_GUIDE_CSS = String.raw`
 .dg h3{font-size:14px;margin:0 0 6px}
 .dg ol{margin:6px 0 0;padding-left:20px}
 .dg li{margin-bottom:4px}
-.dg .btn{display:inline-block;background:#2C5A8A;color:#fff;font-weight:bold;border-radius:6px;padding:8px 14px;text-decoration:none;margin:8px 0 4px}
-.dg .pic{border:1px solid #DADCE0;border-radius:8px;background:#fff;padding:10px 12px;margin-top:10px;font-family:Roboto,Arial,sans-serif;color:#3C4043;font-size:12px}
-.dg .ring{outline:3px solid #D93025;outline-offset:2px;border-radius:4px}
-.dg .blue{display:inline-block;background:#1A73E8;color:#fff;font-weight:bold;border-radius:4px;padding:4px 10px}
-.dg .fld{border:1px solid #DADCE0;border-radius:4px;padding:5px 8px;margin-top:3px;display:flex;justify-content:space-between}
-.dg .cap{font-size:11px;color:#5F6368;margin-top:8px}
+.dg .btn{display:inline-block;background:#2C5A8A;color:#fff;font-weight:bold;border-radius:6px;padding:8px 14px;text-decoration:none;margin:6px 0 4px}
 .dg .note{font-size:12px;color:#6B7280;margin-top:8px;line-height:1.6}
-.dg .warn{border:1px solid #A2452C;background:#F7E9E3;border-radius:8px;padding:10px 12px;margin-top:10px}
-.dg .warn b.t{color:#A2452C}
-.dg .warn .scr{border:1px solid #DADCE0;border-radius:6px;background:#fff;padding:10px 12px;margin-top:8px;font-family:Roboto,Arial,sans-serif;color:#3C4043;font-size:12px}
-.dg .warn .no{color:#9AA0A6;text-decoration:line-through}
 `;
+// 시트 창은 좁아서 순서만 짧게 적고, 그림이 있는 자세한 안내는 프로그램(웹페이지) 4번 화면에 둡니다.
 const DEPLOY_GUIDE_HTML = String.raw`<div class="dg" id="dg">
 <h3>다음: 웹 앱으로 배포하기 (학생용 주소 만들기)</h3>
 <a class="btn" id="editor" target="_blank" rel="noopener">Apps Script 편집기 열기 ↗</a>
-<div>새 탭에 코드 편집기가 열립니다. 코드는 이미 들어 있으니 고치지 마세요. 편집기에서:</div>
+<div>새 탭에 코드 편집기가 열립니다. 코드는 고치지 말고, 편집기에서:</div>
 <ol>
 <li>오른쪽 위 파란 <b>[배포] → [새 배포]</b></li>
 <li>‘유형 선택’ 옆 톱니바퀴 <b>⚙ → 웹 앱</b></li>
-<li>‘다음 사용자 인증 정보로 실행’은 <b>나</b>, ‘액세스 권한이 있는 사용자’는 <b>모든 사용자</b> (이미 골라져 있으면 그대로) → <b>[배포]</b></li>
-<li>[배포]를 누르면 <b>[액세스 승인]</b> 버튼이 나옵니다 → 누르고 내 계정 선택 → <b>아래의 경고 화면</b>이 나오면 순서대로 (처음 한 번)</li>
-<li>‘배포가 업데이트되었습니다’ 화면에서 <b>아래쪽 ‘웹 앱 → URL’ 밑의 [복사]</b>를 누릅니다 (위쪽 ‘배포 ID’ 옆 [복사]가 아닙니다) → 졸업이수요건 점검 프로그램의 <b>5번 칸</b>에 붙여넣기 → [완료]</li>
+<li>실행: <b>나</b> · 액세스 권한: <b>모든 사용자</b> → <b>[배포]</b></li>
+<li><b>[액세스 승인]</b> → 계정 선택 → ‘확인하지 않은 앱’ 화면이 나오면 <b>고급 → (프로젝트)(으)로 이동 → 모두 선택 → 계속</b> (처음 한 번)</li>
+<li>‘웹 앱 → URL’ <b>아래쪽 [복사]</b>(배포 ID 옆이 아님) → 프로그램 <b>5번 칸</b>에 붙여넣기 → [완료]</li>
 </ol>
-<div class="pic">
-  <div style="display:flex;justify-content:space-between;align-items:center;color:#5F6368"><span>편집기 오른쪽 위</span><span class="ring"><span class="blue">배포 ▾</span></span></div>
-  <div style="text-align:right;margin-top:4px">▸ <b>새 배포</b></div>
-  <div style="font-size:15px;color:#202124;margin:8px 0 6px">새 배포</div>
-  <div style="display:flex;gap:12px">
-    <div style="flex:0 0 36%;border-right:1px solid #DADCE0;padding-right:8px">유형 선택 <span class="ring">⚙</span><div class="cap">톱니바퀴를 누르면</div><span class="ring" style="display:inline-block;margin-top:4px;padding:2px 6px">웹 앱</span></div>
-    <div style="flex:1"><div class="cap" style="margin-top:0">다음 사용자 인증 정보로 실행</div><div class="fld ring"><b>나</b><span>▾</span></div><div class="cap">액세스 권한이 있는 사용자</div><div class="fld ring"><b>모든 사용자</b><span>▾</span></div></div>
-  </div>
-  <div style="text-align:right;margin-top:12px"><span style="color:#1A73E8;margin-right:10px">취소</span><span class="ring"><span class="blue">배포</span></span></div>
-</div>
-<div class="warn">
-<b class="t">⚠ ‘Google에서 확인하지 않은 앱’ / ‘Google hasn’t verified this app’ 화면이 나와도 멈추지 마세요</b>
-<div class="scr">
-<div style="color:#DB4437;font-size:20px;line-height:1">▲</div>
-<div style="font-size:16px;color:#202124;margin:6px 0 4px">Google에서 확인하지 않은 앱 <span style="color:#5F6368;font-size:12px">(영어면 Google hasn’t verified this app)</span></div>
-<div>앱에서 Google 계정의 민감한 정보에 대한 액세스를 요청합니다. 개발자(<u>선생님 이메일</u>)의 앱이…</div>
-<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><span class="ring" style="padding:0 3px"><u>고급</u> / <u>Advanced</u></span><span class="no">안전한 환경으로 돌아가기 / BACK TO SAFETY</span></div>
-</div>
-<ol>
-<li>왼쪽 아래 작은 글씨 <b>[고급]</b>(영어: <b>Advanced</b>)을 누릅니다. 파란 ‘안전한 환경으로 돌아가기’(BACK TO SAFETY)는 누르지 마세요.</li>
-<li>아래에 생기는 <b>[(프로젝트 이름)(으)로 이동(안전하지 않음)]</b>(영어: <b>Go to … (unsafe)</b>)을 누릅니다.</li>
-<li>권한 목록에서 맨 위 <b>[모두 선택]</b>(<b>Select all</b>)에 체크하고 파란 <b>[계속]</b>(<b>Continue</b>)을 누릅니다.</li>
-</ol>
-<div class="note" style="margin-top:6px">‘개발자’ 자리에는 선생님 본인의 이메일이 보입니다. 사본을 만든 순간 이 코드가 선생님 것이 되기 때문이고, ‘확인하지 않은 앱’은 구글 심사를 받지 않았다는 뜻일 뿐입니다. 이 코드는 이 시트 하나에만 접근합니다.</div>
-</div>
-<div class="pic">
-  <div style="font-size:15px;color:#202124">새 배포</div>
-  <div style="margin-top:6px">배포가 업데이트되었습니다.</div>
-  <div class="cap">배포 ID</div>
-  <div style="color:#5F6368;font-size:11px">AKfycby…zeRgA</div>
-  <div style="margin-top:2px"><span class="no" style="color:#9AA0A6;text-decoration:line-through">⧉ 복사</span> <span style="color:#A2452C;font-size:11px">← 이건 아닙니다</span></div>
-  <div class="cap" style="font-size:12px;color:#202124;font-weight:bold">웹 앱</div>
-  <div class="cap" style="margin-top:2px">URL</div>
-  <div style="color:#1A73E8;font-size:11px;word-break:break-all">https://script.google.com/macros/s/AKfycby…/exec</div>
-  <div style="margin-top:4px"><span class="ring" style="padding:1px 5px;color:#1A73E8;font-weight:bold">⧉ 복사</span> <span style="color:#A2452C;font-size:11px">← 이 [복사]를 누르세요</span></div>
-  <div style="text-align:right;margin-top:10px"><span class="blue">완료</span></div>
-</div>
-<div class="note">‘모든 사용자’를 골라야 학생이 로그인 없이 QR 코드로 바로 들어옵니다. 설정을 나중에 바꿔도 이 주소는 그대로이고, 다시 배포할 필요가 없습니다.</div>
+<div class="note">화면마다 그림이 있는 자세한 안내는 졸업이수요건 점검 프로그램의 <b>② 수강신청 · 학생 확인 → 학생 기초조사 → 4번</b>에 있습니다. 설정을 나중에 바꿔도 이 주소는 그대로이고, 다시 배포할 필요가 없습니다.</div>
 </div>`;
 // 시트 메뉴 [기초조사 → 설정 붙여넣기]가 여는 창. 구글 시트 안에서 도는 화면이라 오래된 문법(ES5)만 씁니다.
 const CONFIG_DIALOG_HTML = String.raw`<!DOCTYPE html><html><head><base target="_top"><meta charset="utf-8">
