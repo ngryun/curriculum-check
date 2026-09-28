@@ -193,7 +193,7 @@ function makeEnv({ owner = "teacher@example.com", active = "" } = {}, store) {
       Utilities: { formatDate: () => "2026-09-28 10:00:00" },
       ScriptApp: { getScriptId: () => "SCRIPT123" },
       ContentService: {
-        MimeType: { JSON: "json" },
+        MimeType: { JSON: "json", JAVASCRIPT: "js" },
         createTextOutput: (text) => {
           const o = { text, mime: null };
           o.setMimeType = (mt) => ((o.mime = mt), o);
@@ -527,6 +527,18 @@ test("내보내기: 같은 설정에 열쇠만 새로 붙여넣어도 열쇠가 
   const { result } = run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
   assert.equal(result.same, true);
   assert.ok(JSON.parse(run(codeT, st, STUDENT, "doGet", { parameter: { export: A.key } }).result.text).sheets, "열쇠 저장됨");
+});
+
+
+test("내보내기: callback이 오면 스크립트 태그 방식(JSONP)으로 돌려주고, 이상한 이름은 무시한다", () => {
+  const st = newStore();
+  run(codeA, st, STUDENT, "doGet", {});
+  const { result } = run(codeA, st, STUDENT, "doGet", { parameter: { export: A.key, callback: "__survey_cb_ab12" } });
+  assert.equal(result.mime, "js");
+  assert.match(result.text, /^__survey_cb_ab12\(\{.*\}\);$/s);
+  const bad = run(codeA, st, STUDENT, "doGet", { parameter: { export: A.key, callback: "alert(1);x" } }).result;
+  assert.equal(bad.mime, "json");
+  assert.ok(bad.text.startsWith("{"));
 });
 
 console.log(`\n${passed}개 통과`);

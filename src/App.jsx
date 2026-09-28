@@ -6298,12 +6298,22 @@ function GraduationCheckerInner() {
     const url = checkWebAppUrl(surveyConfig.webAppUrl);
     if (!url.ok) return;
     setSurveyFetch({ busy: true, error: "" });
+    const exportUrl = `${url.url}?export=${encodeURIComponent(surveyConfig.exportKey)}`;
+    const OLD_CODE_MSG =
+      "시트가 응답 대신 학생 화면을 돌려줍니다. 응답 내보내기가 없는 옛 코드로 배포된 시트입니다. 시트의 Apps Script에 최신 코드를 붙여넣고 [배포 → 배포 관리 → 연필 → 버전: 새 버전 → 배포]를 해 주세요.";
     try {
-      const res = await fetch(`${url.url}?export=${encodeURIComponent(surveyConfig.exportKey)}`, {
-        redirect: "follow",
-      });
-      if (!res.ok) throw new Error(`주소에 연결하지 못했습니다 (${res.status}).`);
-      const json = await res.json();
+      let json;
+      try {
+        const res = await fetch(exportUrl, { redirect: "follow" });
+        if (!res.ok) throw new Error(`주소에 연결하지 못했습니다 (${res.status}).`);
+        const text = await res.text();
+        if (/^\s*</.test(text)) throw new Error(OLD_CODE_MSG);
+        json = JSON.parse(text);
+      } catch (e) {
+        // 브라우저가 직접 요청을 막았으면(주로 CORS) 스크립트 태그 방식으로 한 번 더
+        if (!(e instanceof TypeError)) throw e;
+        json = await loadJsonp(exportUrl);
+      }
       if (json && json.error) throw new Error(json.error);
       if (!json || json.kind !== "graduation-survey-export" || !json.sheets)
         throw new Error(
@@ -6337,8 +6347,8 @@ function GraduationCheckerInner() {
       const msg = e && e.message ? e.message : String(e);
       setSurveyFetch({
         busy: false,
-        error: /fetch|network|Failed/i.test(msg)
-          ? "시트에 연결하지 못했습니다. 인터넷 연결과 5번 칸의 주소를 확인하세요. 계속 안 되면 시트에서 엑셀로 내려받아 올려 주세요."
+        error: /fetch|network|Failed|JSONP/i.test(msg)
+          ? "시트에 연결하지 못했습니다. 인터넷 연결과 5번 칸의 주소를 확인하고, 옆의 [주소 열어 확인]으로 시트가 무엇을 돌려주는지 보세요. 학생 화면이 보이면 옛 코드로 배포된 것이니 새 버전으로 다시 배포해야 합니다. 계속 안 되면 시트에서 엑셀로 내려받아 올려 주세요."
           : msg,
       });
     }
@@ -11857,6 +11867,24 @@ function RosterPage({
   );
 }
 // ================= PAGE 2 · 학생 기초조사 =================
+// <script src="주소&callback=이름">으로 JSON을 받습니다. fetch가 다른 사이트 요청으로 막힐 때의 예비 방식 (파일로 연 화면에서도 동작)
+function loadJsonp(url, timeoutMs = 25000) {
+  return new Promise((resolve, reject) => {
+    const name = "__survey_cb_" + Math.random().toString(36).slice(2);
+    const script = document.createElement("script");
+    const done = (fn, v) => {
+      clearTimeout(timer);
+      delete window[name];
+      script.remove();
+      fn(v);
+    };
+    const timer = setTimeout(() => done(reject, new Error("JSONP timeout")), timeoutMs);
+    window[name] = (data) => done(resolve, data);
+    script.onerror = () => done(reject, new TypeError("JSONP failed"));
+    script.src = url + (url.includes("?") ? "&" : "?") + "callback=" + name;
+    document.body.appendChild(script);
+  });
+}
 async function copyTextToClipboard(text) {
   try {
     if (navigator.clipboard && window.isSecureContext) {
@@ -13672,6 +13700,17 @@ function SurveyResponsesStep({
           >
             {surveyFetch && surveyFetch.busy ? "가져오는 중…" : "🔄 구글 시트에서 지금 가져오기"}
           </button>
+          {liveUrl.ok && (
+            <a
+              href={`${liveUrl.url}?export=${encodeURIComponent(config.exportKey || "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...buttonStyle("ghost", { padding: "8px 12px" }), textDecoration: "none" }}
+              title="시트가 돌려주는 내용을 새 탭에서 봅니다 (선생님 확인용 · 이 주소는 학생에게 주지 마세요)"
+            >
+              주소 열어 확인
+            </a>
+          )}
           <span style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.55 }}>
             {liveUrl.ok
               ? liveFile

@@ -635,7 +635,7 @@ function doGet(e) {
     }
   }
   var p = (e && e.parameter) || {};
-  if (p.export != null) return exportResponses_(ss, p.export);
+  if (p.export != null) return exportResponses_(ss, p.export, p.callback);
   var ban = parseInt(p.ban, 10);
   var boot = { survey: publicSurvey_(SURVEY), ban: classOf_(ban) ? ban : null, closed: closed_(ss) };
   var json = JSON.stringify(boot).replace(/</g, "\\u003c");
@@ -655,7 +655,7 @@ function publicSurvey_(s) {
 // 프로그램의 [구글 시트에서 지금 가져오기]가 부릅니다 (…/exec?export=열쇠).
 // 열쇠는 프로그램이 만들어 설정 코드에 넣어 둔 것이라, 설정을 붙여넣은 선생님의 프로그램만 알고 있습니다.
 // 내보내는 모양은 시트를 엑셀로 내려받았을 때와 같아서(시트 이름 → 행 목록), 프로그램은 같은 코드로 읽습니다.
-function exportResponses_(ss, key) {
+function exportResponses_(ss, key, callback) {
   var out;
   if (!SURVEY.key || String(key) !== SURVEY.key) {
     out = { error: "열쇠가 맞지 않습니다. 프로그램에서 [설정 코드 복사]를 다시 눌러 시트 메뉴 [설정 붙여넣기]에 넣은 뒤 다시 가져와 주세요." };
@@ -667,7 +667,12 @@ function exportResponses_(ss, key) {
     });
     out = { kind: "graduation-survey-export", at: Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm:ss"), closed: closed_(ss), sheets: sheets };
   }
-  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+  var text = JSON.stringify(out);
+  // 브라우저가 다른 사이트로의 직접 요청(fetch)을 막을 때를 위한 예비 방식: <script src="…&callback=이름">
+  if (typeof callback === "string" && /^[A-Za-z_$][A-Za-z0-9_$]{0,60}$/.test(callback)) {
+    return ContentService.createTextOutput(callback + "(" + text + ");").setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(text).setMimeType(ContentService.MimeType.JSON);
 }
 
 // 학생 화면의 [제출하기]가 부릅니다. 받은 내용을 조사 설정과 다시 대조한 뒤에만 시트에 적습니다.
