@@ -3210,6 +3210,33 @@ async function decryptText(payload, password) {
   );
   return new TextDecoder().decode(plainBuf);
 }
+// 같은 탭에서 새로고침되거나(Chrome이 메모리를 아끼려고 탭을 내렸다 올리는 경우 포함) 되돌아왔을 때 비밀번호를 다시 묻지 않도록,
+// 탭이 살아 있는 동안만 남는 저장소(sessionStorage)에 기억합니다. 새 탭·새 창으로 들어오면 다시 묻습니다. 8시간이 지나면 지웁니다.
+const KEEP_SESSION_KEY = "keepSession";
+const KEEP_SESSION_HOURS = 8;
+function sessionKeepGet() {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(KEEP_SESSION_KEY) || "null");
+    if (v && typeof v.pw === "string" && Number(v.until) > Date.now()) return v.pw;
+  } catch (e) {
+    // 세션 저장소를 못 읽으면 다시 묻습니다
+  }
+  return null;
+}
+function sessionKeepSet(pw) {
+  try {
+    sessionStorage.setItem(KEEP_SESSION_KEY, JSON.stringify({ pw, until: Date.now() + KEEP_SESSION_HOURS * 3600000 }));
+  } catch (e) {
+    // 못 남기면 다음 새로고침 때 다시 묻는 것뿐
+  }
+}
+function sessionKeepClear() {
+  try {
+    sessionStorage.removeItem(KEEP_SESSION_KEY);
+  } catch (e) {
+    // 무시
+  }
+}
 // 자동 보관용 잠금 도구. 파일 저장(encryptText)과 같은 형식으로 내보내서 decryptText로 열 수 있습니다.
 async function makeKeeper(password) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -6087,11 +6114,22 @@ function GraduationCheckerInner() {
   const keepDirtyRef = useRef(false);
   const keepTimerRef = useRef(null);
   useEffect(() => {
-    // 처음 열 때: 이 브라우저에 지난 작업이 남아 있으면 이어할지 묻습니다 (묻지 않고 자동으로 불러오지 않음)
+    // 처음 열 때: 이 브라우저에 지난 작업이 남아 있으면 — 같은 탭에서 기억한 비밀번호가 있으면 조용히 이어서 하고,
+    // 없으면(새 탭·새 창) 비밀번호를 물어봅니다. 묻지 않고 자동으로 불러오는 일은 없습니다.
     if (!cryptoAvailable) return;
     keepRead()
-      .then((rec) => {
-        if (rec) setResumeInfo(rec);
+      .then(async (rec) => {
+        if (!rec) return;
+        const remembered = sessionKeepGet();
+        if (remembered) {
+          try {
+            await resumeWith(rec, remembered);
+            return;
+          } catch (e) {
+            sessionKeepClear(); // 비밀번호가 바뀌었거나 열 수 없음 → 물어봄
+          }
+        }
+        setResumeInfo(rec);
       })
       .catch(() => {});
   }, []);
@@ -6099,12 +6137,14 @@ function GraduationCheckerInner() {
     keeperRef.current = await makeKeeper(password);
     setKeepPassword(password);
     setKeepDraft("");
+    sessionKeepSet(password);
     keepDirtyRef.current = true; // 바로 한 번 보관
   };
   const stopKeeping = async () => {
     keeperRef.current = null;
     setKeepPassword(null);
     setKeepState({ savedAt: null, error: "" });
+    sessionKeepClear();
     await keepClear();
   };
   const declineKeeping = () => {
@@ -7485,16 +7525,21 @@ function GraduationCheckerInner() {
     surveyExcluded,
     grade1Electives,
   ]);
+  // 보관된 내용을 비밀번호로 열어 화면에 올리고, 같은 비밀번호로 자동 보관을 이어 갑니다. 못 열면 예외를 던집니다.
+  const resumeWith = async (rec, password) => {
+    const json = await decryptText(rec.payload, password);
+    restoreSnapshot(JSON.parse(json));
+    setLastSavedAt(null); // 브라우저 보관분을 연 것이지 파일로 저장한 것은 아님
+    await startKeeping(password);
+    keepDirtyRef.current = false; // 방금 연 내용이 곧 보관된 내용
+    setKeepState({ savedAt: new Date(rec.savedAt), error: "" });
+  };
   const confirmResume = async () => {
     if (!resumeInfo || !resumePassword) return;
     setResumeBusy(true);
     setResumeError("");
     try {
-      const json = await decryptText(resumeInfo.payload, resumePassword);
-      restoreSnapshot(JSON.parse(json));
-      setLastSavedAt(null); // 브라우저 보관분을 연 것이지 파일로 저장한 것은 아님
-      await startKeeping(resumePassword);
-      setKeepState({ savedAt: new Date(resumeInfo.savedAt), error: "" });
+      await resumeWith(resumeInfo, resumePassword);
       setResumeInfo(null);
       setResumePassword("");
     } catch (e) {
@@ -7508,6 +7553,7 @@ function GraduationCheckerInner() {
     }
   };
   const discardResume = async () => {
+    sessionKeepClear();
     await keepClear();
     setResumeInfo(null);
     setResumePassword("");
@@ -8569,7 +8615,8 @@ function KeepOfferBar({ value, onChange, onKeep, onDecline }) {
       <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 4 }}>이 브라우저에 임시 보관할까요?</div>
       <div style={{ color: MUTED, marginBottom: 8 }}>
         실수로 창을 닫아도 이어서 할 수 있게, 작업 내용을 비밀번호로 잠가 이 브라우저에 자동으로 남겨 둡니다.{" "}
-        {KEEP_MAX_AGE_DAYS}일 뒤 자동으로 지워집니다. <b style={{ color: INK }}>공용 컴퓨터라면 [안 함]</b>을 누르세요.
+        {KEEP_MAX_AGE_DAYS}일 뒤 자동으로 지워집니다. 이 탭을 닫기 전까지는 비밀번호를 다시 묻지 않고, 새 탭으로 열 때만
+        묻습니다. <b style={{ color: INK }}>공용 컴퓨터라면 [안 함]</b>을 누르세요.
       </div>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input
