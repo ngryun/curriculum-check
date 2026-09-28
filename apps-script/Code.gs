@@ -18,6 +18,8 @@ var SHEET_STATUS = "제출현황";
 var SHEET_LOG = "제출기록";
 var SHEET_PICKS = "선택과목";
 var SHEET_CONFIG = "조사설정";
+var SHEET_START = "시작하기"; // 템플릿에 넣어 두는 안내 시트 — 조사 준비가 끝나면 지웁니다
+var DEFAULT_SHEET_NAMES = ["시트1", "Sheet1"]; // 새 시트에 처음부터 있는 빈 시트
 var LOG_HEADER = ["제출번호", "제출시각", "학년", "반", "번호", "이름", "다른 학교에 다닌 학기", "남긴 말", "고른 과목"];
 var PICK_HEADER = ["제출번호", "제출시각", "학년", "반", "번호", "이름", "학기", "선택그룹", "과목"];
 var AWAY_MARK = "(다른 학교에 다님)";
@@ -436,6 +438,33 @@ function prepare_(ss, force) {
   settings.setColumnWidth(1, 170);
   settings.setColumnWidth(2, 560);
   buildStatus_(ss);
+  removeLeftoverSheets_(ss);
+}
+
+// 조사에 쓰지 않는 시트를 지웁니다: 템플릿의 안내 시트(시작하기)와, 아무것도 적지 않은 기본 시트(시트1).
+// 선생님이 시트1에 뭔가 적어 두었다면 지우지 않습니다.
+function removeLeftoverSheets_(ss) {
+  ss.getSheets().forEach(function (sh) {
+    var name = sh.getName();
+    var blank = sh.getLastRow() === 0 && sh.getLastColumn() === 0;
+    if (name !== SHEET_START && !(DEFAULT_SHEET_NAMES.indexOf(name) >= 0 && blank)) return;
+    if (ss.getSheets().length <= 1) return;
+    try {
+      ss.deleteSheet(sh);
+    } catch (e) {
+      // 지우지 못해도 조사에는 지장이 없습니다
+    }
+  });
+  var status = ss.getSheetByName(SHEET_STATUS);
+  if (status) {
+    // 시트를 열면 제출현황이 맨 앞에 보이게
+    try {
+      ss.setActiveSheet(status);
+      ss.moveActiveSheet(1);
+    } catch (e) {
+      // 순서를 못 바꿔도 괜찮습니다
+    }
+  }
 }
 
 function ensureHeader_(ss, name, header) {

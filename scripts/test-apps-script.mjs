@@ -65,6 +65,12 @@ class Sheet {
   getMaxRows() {
     return this.maxRows;
   }
+  getName() {
+    return this.name;
+  }
+  getLastColumn() {
+    return Math.max(0, ...this.cells.map((r) => (r || []).reduce((mx, v, j) => (v !== "" && v != null ? j + 1 : mx), 0)));
+  }
   insertRowsAfter(after, n) {
     this.maxRows += n;
   }
@@ -206,9 +212,9 @@ function fakeApi(store, url, opts) {
   if (opts.method === "get" && m) return api.deployments[m[1]] ? reply(200, api.deployments[m[1]]) : reply(404, { error: { code: 404, message: "Requested entity was not found." } });
   return reply(400, { error: { message: "unexpected " + path } });
 }
-function newStore() {
-  const sheets = new Map([["시트1", new Sheet("시트1")]]);
-  return {
+function newStore(first = "시트1") {
+  const sheets = new Map([[first, new Sheet(first)]]);
+  const store = {
     props: {},
     api: { enabled: true, access: "ANYONE_ANONYMOUS", version: 0, deployments: {}, calls: [] },
     menu: [],
@@ -223,8 +229,23 @@ function newStore() {
         sheets.set(n, s);
         return s;
       },
+      getSheets: () => [...sheets.values()],
+      deleteSheet: (sh) => {
+        if (sheets.size <= 1) throw new Error("마지막 시트는 지울 수 없음");
+        sheets.delete(sh.name);
+      },
+      setActiveSheet: (sh) => (store.active = sh.name),
+      moveActiveSheet: (pos) => {
+        const order = [...sheets.entries()];
+        const i = order.findIndex(([n]) => n === store.active);
+        const [item] = order.splice(i, 1);
+        order.splice(pos - 1, 0, item);
+        sheets.clear();
+        order.forEach(([n, v]) => sheets.set(n, v));
+      },
     },
   };
+  return store;
 }
 // 한 번의 실행(학생 한 명의 접속, 선생님의 메뉴 클릭 등)은 전역 변수가 새로 시작하므로 매번 새 컨텍스트에서 코드를 돌립니다
 function run(code, store, who, fn, ...args) {
@@ -487,6 +508,30 @@ test("템플릿 매니페스트: 웹 앱(나 · 모든 사용자)과 필요한 �
   for (const scope of ["spreadsheets.currentonly", "script.container.ui", "userinfo.email", "script.external_request", "script.projects", "script.deployments"]) {
     assert.ok(m.oauthScopes.includes("https://www.googleapis.com/auth/" + scope), scope);
   }
+});
+
+
+test("조사를 준비하면 빈 시트1과 안내 시트(시작하기)를 지우고 제출현황을 맨 앞에 둔다", () => {
+  const st = newStore();
+  run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
+  const names = [...st.sheets.keys()];
+  assert.ok(!names.includes("시트1"), "빈 시트1 삭제");
+  assert.equal(names[0], "제출현황");
+  const st2 = newStore("시작하기");
+  st2.sheets.get("시작하기").getRange(1, 1).setValue("위쪽 메뉴 [기초조사 → 설정 붙여넣기]를 쓰세요");
+  run(codeT, st2, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
+  assert.ok(!st2.sheets.has("시작하기"), "안내 시트는 내용이 있어도 삭제");
+  const st3 = newStore();
+  run(codeA, st3, STUDENT, "doGet", {});
+  assert.ok(!st3.sheets.has("시트1"), "설치 코드 방식: 학생 첫 접속 때 삭제");
+});
+
+test("선생님이 무언가 적어 둔 시트1은 지우지 않는다", () => {
+  const st = newStore();
+  st.sheets.get("시트1").getRange(3, 2).setValue("메모");
+  run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
+  assert.ok(st.sheets.has("시트1"));
+  assert.ok(st.sheets.get("조사설정").hidden, "조사설정은 여전히 숨김");
 });
 
 console.log(`\n${passed}개 통과`);
