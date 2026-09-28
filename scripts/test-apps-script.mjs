@@ -197,6 +197,7 @@ function fakeApi(store, url, opts) {
   api.calls.push((opts.method || "get").toUpperCase() + " " + url.replace("https://script.googleapis.com/v1/projects/SCRIPT123", ""));
   assert.equal(opts.headers.Authorization, "Bearer TOKEN");
   const reply = (code, body) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(body) });
+  if (api.projectDisabled) return reply(403, { error: { code: 403, message: "Apps Script API has not been used in project 123456789 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/script.googleapis.com/overview?project=123456789 then retry.", status: "PERMISSION_DENIED" } });
   if (api.scopeError) return reply(403, { error: { code: 403, message: "Request had insufficient authentication scopes.", status: "PERMISSION_DENIED" } });
   if (!api.enabled) return reply(403, { error: { code: 403, message: "User has not enabled the Apps Script API. Enable it by visiting https://script.google.com/home/usersettings then retry.", status: "PERMISSION_DENIED" } });
   const path = url.split("/projects/SCRIPT123")[1];
@@ -541,6 +542,18 @@ test("자동 배포: 권한 목록(appsscript.json)에 배포 권한이 없으�
   st.api.scopeError = true;
   run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
   assert.throws(() => run(codeT, st, OWNER, "createStudentUrl"), /권한 목록\(appsscript\.json\)에 배포 권한이 없습니다/);
+});
+
+
+test("자동 배포: 계정 스위치와 클라우드 프로젝트 쪽 API 꺼짐을 구분하고 원래 문구를 함께 보여준다", () => {
+  const st = newStore();
+  st.api.projectDisabled = true;
+  run(codeT, st, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
+  assert.throws(() => run(codeT, st, OWNER, "createStudentUrl"), (e) => /클라우드 프로젝트에서 Apps Script API를 쓸 수 없습니다/.test(e.message) && /원래 문구\] 403 Apps Script API has not been used in project/.test(e.message) && !/usersettings/.test(e.message));
+  const st2 = newStore();
+  st2.api.enabled = false;
+  run(codeT, st2, OWNER, "saveSurveyConfig", buildSurveyConfigCode(A), false);
+  assert.throws(() => run(codeT, st2, OWNER, "createStudentUrl"), (e) => /teacher@example\.com/.test(e.message) && /원래 문구\]/.test(e.message));
 });
 
 console.log(`\n${passed}개 통과`);

@@ -584,8 +584,21 @@ function api_(method, path, body) {
 
 function apiFail_(r) {
   var m = r.message || "";
-  if (/Apps Script API|usersettings|SERVICE_DISABLED|has not been used/i.test(m)) {
-    fail_("Apps Script API가 꺼져 있습니다. " + API_SETTINGS_URL + " 에서 ‘Google Apps Script API’를 ‘사용’으로 바꾼 뒤, 1~2분 지나 다시 눌러 주세요.");
+  var raw = "\n\n[구글이 보낸 원래 문구] " + r.code + " " + m;
+  // 선생님 계정의 'Google Apps Script API' 스위치가 꺼져 있는 경우
+  if (/usersettings|User has not enabled the Apps Script API/i.test(m)) {
+    fail_(
+      "Apps Script API가 꺼져 있습니다. " + API_SETTINGS_URL + " 에서 ‘Google Apps Script API’를 ‘사용’으로 바꾼 뒤, 몇 분 지나 다시 눌러 주세요." +
+        " 켰는데도 이 문구가 나오면, 스위치를 켠 구글 계정과 이 시트를 연 구글 계정(" + Session.getEffectiveUser().getEmail() + ")이 같은지 확인하세요." +
+        raw
+    );
+  }
+  // 스위치와는 별개로, 이 스크립트가 붙은 구글 클라우드 프로젝트 쪽에서 Apps Script API를 쓸 수 없는 경우
+  if (/has not been used in project|SERVICE_DISABLED|console\.(developers|cloud)\.google\.com/i.test(m)) {
+    fail_(
+      "이 시트의 Apps Script가 연결된 구글 클라우드 프로젝트에서 Apps Script API를 쓸 수 없습니다. (계정 설정 스위치와는 다른 곳입니다) Apps Script 편집기에서 [배포 → 새 배포 → 웹 앱]으로 직접 배포해 주세요." +
+        raw
+    );
   }
   // 매니페스트(appsscript.json)에 배포 권한(script.projects · script.deployments)이 없어서 받은 토큰으로는 배포할 수 없는 경우
   if (/insufficient authentication scopes|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(m)) {
