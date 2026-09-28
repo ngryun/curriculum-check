@@ -1028,6 +1028,10 @@ const DEPLOY_GUIDE_CSS = String.raw`
 .dg .fld{border:1px solid #DADCE0;border-radius:4px;padding:5px 8px;margin-top:3px;display:flex;justify-content:space-between}
 .dg .cap{font-size:11px;color:#5F6368;margin-top:8px}
 .dg .note{font-size:12px;color:#6B7280;margin-top:8px;line-height:1.6}
+.dg .warn{border:1px solid #A2452C;background:#F7E9E3;border-radius:8px;padding:10px 12px;margin-top:10px}
+.dg .warn b.t{color:#A2452C}
+.dg .warn .scr{border:1px solid #DADCE0;border-radius:6px;background:#fff;padding:10px 12px;margin-top:8px;font-family:Roboto,Arial,sans-serif;color:#3C4043;font-size:12px}
+.dg .warn .no{color:#9AA0A6;text-decoration:line-through}
 `;
 const DEPLOY_GUIDE_HTML = String.raw`<div class="dg" id="dg">
 <h3>다음: 웹 앱으로 배포하기 (학생용 주소 만들기)</h3>
@@ -1037,7 +1041,7 @@ const DEPLOY_GUIDE_HTML = String.raw`<div class="dg" id="dg">
 <li>오른쪽 위 파란 <b>[배포] → [새 배포]</b></li>
 <li>‘유형 선택’ 옆 톱니바퀴 <b>⚙ → 웹 앱</b></li>
 <li>‘다음 사용자 인증 정보로 실행’은 <b>나</b>, ‘액세스 권한이 있는 사용자’는 <b>모든 사용자</b> (이미 골라져 있으면 그대로) → <b>[배포]</b></li>
-<li>‘액세스 승인’ 창이 나오면 허용 (처음 한 번)</li>
+<li>[배포]를 누르면 <b>[액세스 승인]</b> 버튼이 나옵니다 → 누르고 내 계정 선택 → <b>아래의 경고 화면</b>이 나오면 순서대로 (처음 한 번)</li>
 <li>나온 <b>웹 앱 URL</b>(…/exec) 아래 <b>[복사]</b> → 졸업이수요건 점검 프로그램의 <b>5번 칸</b>에 붙여넣기</li>
 </ol>
 <div class="pic">
@@ -1049,6 +1053,21 @@ const DEPLOY_GUIDE_HTML = String.raw`<div class="dg" id="dg">
     <div style="flex:1"><div class="cap" style="margin-top:0">다음 사용자 인증 정보로 실행</div><div class="fld ring"><b>나</b><span>▾</span></div><div class="cap">액세스 권한이 있는 사용자</div><div class="fld ring"><b>모든 사용자</b><span>▾</span></div></div>
   </div>
   <div style="text-align:right;margin-top:12px"><span style="color:#1A73E8;margin-right:10px">취소</span><span class="ring"><span class="blue">배포</span></span></div>
+</div>
+<div class="warn">
+<b class="t">⚠ ‘Google에서 확인하지 않은 앱’ / ‘Google hasn’t verified this app’ 화면이 나와도 멈추지 마세요</b>
+<div class="scr">
+<div style="color:#DB4437;font-size:20px;line-height:1">▲</div>
+<div style="font-size:16px;color:#202124;margin:6px 0 4px">Google에서 확인하지 않은 앱 <span style="color:#5F6368;font-size:12px">(영어면 Google hasn’t verified this app)</span></div>
+<div>앱에서 Google 계정의 민감한 정보에 대한 액세스를 요청합니다. 개발자(<u>선생님 이메일</u>)의 앱이…</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><span class="ring" style="padding:0 3px"><u>고급</u> / <u>Advanced</u></span><span class="no">안전한 환경으로 돌아가기 / BACK TO SAFETY</span></div>
+</div>
+<ol>
+<li>왼쪽 아래 작은 글씨 <b>[고급]</b>(영어: <b>Advanced</b>)을 누릅니다. 파란 ‘안전한 환경으로 돌아가기’(BACK TO SAFETY)는 누르지 마세요.</li>
+<li>아래에 생기는 <b>[(프로젝트 이름)(으)로 이동(안전하지 않음)]</b>(영어: <b>Go to … (unsafe)</b>)을 누릅니다.</li>
+<li>권한 목록에서 맨 위 <b>[모두 선택]</b>(<b>Select all</b>)에 체크하고 파란 <b>[계속]</b>(<b>Continue</b>)을 누릅니다.</li>
+</ol>
+<div class="note" style="margin-top:6px">‘개발자’ 자리에는 선생님 본인의 이메일이 보입니다. 사본을 만든 순간 이 코드가 선생님 것이 되기 때문이고, ‘확인하지 않은 앱’은 구글 심사를 받지 않았다는 뜻일 뿐입니다. 이 코드는 이 시트 하나에만 접근합니다.</div>
 </div>
 <div class="note">‘모든 사용자’를 골라야 학생이 로그인 없이 QR 코드로 바로 들어옵니다. 설정을 나중에 바꿔도 이 주소는 그대로이고, 다시 배포할 필요가 없습니다.</div>
 </div>`;

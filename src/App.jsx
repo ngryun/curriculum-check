@@ -12667,8 +12667,8 @@ function UnverifiedAppGuide() {
         <div style={label}>
           <span style={badge}>1</span>
           <span>
-            이 화면이 나오면 왼쪽 아래 작은 글씨 <span style={{ color: "#D93025" }}>[고급]</span>을 누르세요. 파란
-            버튼은 누르지 마세요.
+            이 화면이 나오면 왼쪽 아래 작은 글씨 <span style={{ color: "#D93025" }}>[고급]</span>(영어: Advanced)을
+            누르세요. 파란 버튼은 누르지 마세요.
           </span>
         </div>
         <div style={{ ...screen, maxWidth: 520 }}>
@@ -12710,7 +12710,8 @@ function UnverifiedAppGuide() {
           <span style={badge}>2</span>
           <span>
             아래에 글이 더 나오면 맨 아래{" "}
-            <span style={{ color: "#D93025" }}>[(프로젝트 이름)(으)로 이동(안전하지 않음)]</span>을 누르세요.
+            <span style={{ color: "#D93025" }}>[(프로젝트 이름)(으)로 이동(안전하지 않음)]</span>(영어: Go to …
+            (unsafe))을 누르세요.
           </span>
         </div>
         <div style={{ ...screen, maxWidth: 520, fontSize: 12.5, lineHeight: 1.6 }}>
@@ -12728,9 +12729,9 @@ function UnverifiedAppGuide() {
         <div style={label}>
           <span style={badge}>3</span>
           <span>
-            권한 목록이 나오면 맨 위 <span style={{ color: "#D93025" }}>[모두 선택]</span>에 꼭 체크하고 파란{" "}
-            <span style={{ color: "#D93025" }}>[계속]</span>을 누르세요. 하나라도 빠지면 설정 창이나 학생 화면이 열리지
-            않습니다.
+            권한 목록이 나오면 맨 위 <span style={{ color: "#D93025" }}>[모두 선택]</span>(Select all)에 꼭 체크하고
+            파란 <span style={{ color: "#D93025" }}>[계속]</span>(Continue)을 누르세요. 하나라도 빠지면 설정 창이나 학생
+            화면이 열리지 않습니다.
           </span>
         </div>
         <div style={{ ...screen, maxWidth: 520, fontSize: 12.5, lineHeight: 1.6 }}>
@@ -12896,6 +12897,10 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
     >
       <div style={{ fontWeight: 800, color: WARN, fontSize: 13 }}>
         ⚠ ‘Google에서 확인하지 않은 앱’ 화면이 나와도 멈추지 마세요
+      </div>
+      <div style={{ fontSize: 12.3, color: WARN, marginTop: 2 }}>
+        설정을 처음 저장할 때와, 배포 창에서 <b>[액세스 승인]</b>을 누른 뒤에 나옵니다. 영어로 나오면 ‘Google hasn’t
+        verified this app’입니다.
       </div>
       <UnverifiedAppGuide />
     </div>
