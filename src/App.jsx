@@ -4983,7 +4983,11 @@ function normalizeSurveyConfig(raw) {
     installMethod: ["template", "code"].includes(raw.installMethod) ? raw.installMethod : "",
     installChecks:
       raw.installChecks && typeof raw.installChecks === "object"
-        ? Object.fromEntries(Object.keys(raw.installChecks).filter((k) => /^[a-z][0-9]$/.test(k) && raw.installChecks[k] === true).map((k) => [k, true]))
+        ? Object.fromEntries(
+            Object.keys(raw.installChecks)
+              .filter((k) => /^[a-z][0-9]$/.test(k) && raw.installChecks[k] === true)
+              .map((k) => [k, true]),
+          )
         : {},
   };
 }
@@ -12481,7 +12485,10 @@ function InstallCheckItem({ no, done, onToggle, title, children }) {
         marginBottom: 8,
       }}
     >
-      <label style={{ display: "flex", alignItems: "flex-start", paddingTop: 2, cursor: "pointer" }} title="다 했으면 체크">
+      <label
+        style={{ display: "flex", alignItems: "flex-start", paddingTop: 2, cursor: "pointer" }}
+        title="다 했으면 체크"
+      >
         <input type="checkbox" checked={!!done} onChange={onToggle} style={{ width: 16, height: 16, margin: 0 }} />
       </label>
       <div style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.65, color: INK }}>
@@ -12494,64 +12501,121 @@ function InstallCheckItem({ no, done, onToggle, title, children }) {
     </div>
   );
 }
-// 'Google에서 확인하지 않은 앱' 화면을 미리 보여주는 그림 (실제 화면을 단순하게 그린 것)
+// 'Google에서 확인하지 않은 앱' 화면을 실제 모습대로 그린 그림. 캡처 대신 그려서, 개발자 이메일 자리에 누구 주소가 보이는지 설명할 수 있습니다.
 function UnverifiedAppGuide() {
   const screen = {
-    flex: "1 1 190px",
-    minWidth: 190,
     border: `1px solid ${LINE}`,
     borderRadius: 8,
     background: "#fff",
-    padding: "10px 12px",
-    fontSize: 11.5,
-    lineHeight: 1.55,
+    padding: "14px 16px 12px",
     color: "#3C4043",
+    fontFamily: "Roboto, Arial, sans-serif",
   };
-  const mark = {
+  const ring = {
     display: "inline-block",
-    border: "2px solid #D93025",
-    borderRadius: 6,
-    padding: "1px 6px",
-    color: "#1A73E8",
-    fontWeight: 700,
+    outline: "3px solid #D93025",
+    outlineOffset: 3,
+    borderRadius: 4,
   };
-  const step = { fontSize: 11, fontWeight: 800, color: MUTED, marginBottom: 6 };
+  const badge = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    background: "#D93025",
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: 800,
+    flexShrink: 0,
+  };
+  const label = {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12.5,
+    fontWeight: 800,
+    color: INK,
+    margin: "0 0 6px",
+  };
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-        <div style={screen}>
-          <div style={step}>① 경고 화면</div>
-          <div style={{ fontWeight: 700, fontSize: 13, color: "#202124", marginBottom: 4 }}>
-            Google에서 확인하지 않은 앱
-          </div>
-          <div style={{ marginBottom: 10 }}>이 앱은 Google의 확인을 받지 않았습니다…</div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
-            <span style={mark}>고급</span>
-            <span style={{ fontSize: 10.5, color: MUTED }}>안전한 페이지로 돌아가기</span>
-          </div>
+    <div style={{ marginTop: 8, display: "grid", gap: 10 }}>
+      <div>
+        <div style={label}>
+          <span style={badge}>1</span>
+          <span>
+            이 화면이 나오면 왼쪽 아래 작은 글씨 <span style={{ color: "#D93025" }}>[고급]</span>을 누르세요. 파란
+            버튼은 누르지 마세요.
+          </span>
         </div>
-        <div style={screen}>
-          <div style={step}>② [고급]을 누르면 아래에 생기는 글</div>
-          <div style={{ marginBottom: 8 }}>
-            Google에서 아직 이 앱을 검토하지 않았습니다. 개발자를 신뢰할 수 있는 경우에만 계속하세요.
+        <div style={{ ...screen, maxWidth: 520 }}>
+          <svg width="34" height="30" viewBox="0 0 34 30" aria-hidden="true">
+            <path d="M17 1 L33 29 L1 29 Z" fill="#DB4437" />
+            <rect x="15.5" y="10" width="3" height="10" fill="#fff" />
+            <rect x="15.5" y="22.5" width="3" height="3" fill="#fff" />
+          </svg>
+          <div style={{ fontSize: 19, color: "#202124", margin: "8px 0 6px" }}>Google에서 확인하지 않은 앱</div>
+          <div style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+            앱에서 Google 계정의 민감한 정보에 대한 액세스를 요청합니다. 개발자(
+            <span style={{ color: "#1A73E8", textDecoration: "underline" }}>선생님 이메일</span>)의 앱이 Google에서
+            인증을 받기 전에는 앱을 사용하지 마세요.
           </div>
-          <span style={mark}>(프로젝트 이름)(으)로 이동(안전하지 않음)</span>
-        </div>
-        <div style={screen}>
-          <div style={step}>③ 권한 확인</div>
-          <div style={{ marginBottom: 8 }}>
-            (프로젝트 이름)에서 Google 계정에 액세스하려고 합니다
-            <br />· 이 앱이 적용된 스프레드시트 보기 및 관리 등
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <span style={{ ...mark, background: "#1A73E8", color: "#fff", borderColor: "#D93025" }}>허용</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
+            <span style={ring}>
+              <span style={{ fontSize: 12.5, textDecoration: "underline", color: "#3C4043", padding: "0 2px" }}>
+                고급
+              </span>
+            </span>
+            <span
+              style={{
+                background: "#4285F4",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 700,
+                borderRadius: 4,
+                padding: "7px 10px",
+                opacity: 0.55,
+              }}
+            >
+              안전한 환경으로 돌아가기
+            </span>
           </div>
         </div>
       </div>
-      <div style={{ fontSize: 12.3, color: MUTED, lineHeight: 1.6, marginTop: 8 }}>
-        ‘확인하지 않은 앱’은 구글 심사를 받지 않았다는 뜻일 뿐, 선생님 계정에서 선생님이 만든(복사한) 코드입니다. 이 코드는{" "}
-        <b style={{ color: INK }}>이 시트 하나에만</b> 접근하고(@OnlyCurrentDoc), 다른 파일·메일·드라이브는 볼 수 없습니다. (이메일 주소 권한은 설정 창을 시트 주인만 열 수 있는지 확인하는 데만, Apps Script 프로젝트·배포 관리 권한은 [학생용 주소 만들기]가 이 시트의 코드를 웹 앱으로 배포하는 데만 씁니다.)
-        권한 허용은 처음 한 번만 하면 됩니다.
+      <div>
+        <div style={label}>
+          <span style={badge}>2</span>
+          <span>
+            아래에 글이 더 나오면 맨 아래{" "}
+            <span style={{ color: "#D93025" }}>[(프로젝트 이름)(으)로 이동(안전하지 않음)]</span>을 누르세요.
+          </span>
+        </div>
+        <div style={{ ...screen, maxWidth: 520, fontSize: 12.5, lineHeight: 1.6 }}>
+          <div style={{ marginBottom: 10 }}>
+            계속하려면 위험성을 이해하고 개발자(선생님 이메일)를 신뢰하는 경우에만 계속하세요.
+          </div>
+          <span style={ring}>
+            <span style={{ color: "#3C4043", textDecoration: "underline", padding: "0 2px" }}>
+              학생 기초조사(으)로 이동(안전하지 않음)
+            </span>
+          </span>
+        </div>
+      </div>
+      <div>
+        <div style={label}>
+          <span style={badge}>3</span>
+          <span>
+            권한 목록이 나오면 맨 아래 파란 <span style={{ color: "#D93025" }}>[허용]</span>을 누르세요.
+          </span>
+        </div>
+      </div>
+      <div style={{ fontSize: 12.3, color: MUTED, lineHeight: 1.6 }}>
+        괄호 안의 ‘개발자’ 자리에는 <b style={{ color: INK }}>선생님 본인의 이메일</b>이 보입니다. 사본을 만든 순간 이
+        코드는 선생님 것이 되기 때문입니다. ‘확인하지 않은 앱’은 구글 심사를 받지 않았다는 뜻일 뿐이고, 이 코드는{" "}
+        <b style={{ color: INK }}>이 시트 하나에만</b> 접근하며 다른 파일·메일·드라이브는 볼 수 없습니다. (이메일 주소
+        권한은 설정 창을 시트 주인만 열 수 있는지 확인하는 데만, Apps Script 프로젝트·배포 관리 권한은 [학생용 주소
+        만들기]가 이 시트의 코드를 웹 앱으로 배포하는 데만 씁니다.) 권한 허용은 처음 한 번만 하면 됩니다.
       </div>
     </div>
   );
@@ -12663,13 +12727,16 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
       </li>
     </ol>
   );
+  // 권한 허용 중 가장 많이 막히는 화면이라 접지 않고 늘 보여줍니다
   const authNote = (
-    <details style={{ marginTop: 6 }}>
-      <summary style={{ cursor: "pointer", color: ACCENT, fontWeight: 700, fontSize: 12.5 }}>
-        ‘Google에서 확인하지 않은 앱’ 화면이 나오면? (그림으로 보기)
-      </summary>
+    <div
+      style={{ marginTop: 8, border: `1px solid ${WARN}`, background: WARN_BG, borderRadius: 8, padding: "10px 12px" }}
+    >
+      <div style={{ fontWeight: 800, color: WARN, fontSize: 13 }}>
+        ⚠ ‘Google에서 확인하지 않은 앱’ 화면이 나와도 멈추지 마세요
+      </div>
       <UnverifiedAppGuide />
-    </details>
+    </div>
   );
   return (
     <SurveyStep
@@ -12723,16 +12790,16 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
           <div style={{ fontWeight: 800, marginBottom: 4 }}>
             ⚠ 시트에 넘긴 뒤 조사 설정(학기·반별 인원·안내·편제표)이 바뀌었습니다.
           </div>
-          이미 설치했다면 <b>[설정 코드 복사]</b>를 누르고, 구글 시트 위 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>에 붙여넣어
-          저장하세요. <b>다시 배포할 필요가 없고</b> 학생 주소(QR 코드)도 그대로입니다.
+          이미 설치했다면 <b>[설정 코드 복사]</b>를 누르고, 구글 시트 위 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>에
+          붙여넣어 저장하세요. <b>다시 배포할 필요가 없고</b> 학생 주소(QR 코드)도 그대로입니다.
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
             {copyConfigButton}
             {copyNote("config")}
           </div>
           <div style={{ fontSize: 12, marginTop: 8, color: MUTED }}>
-            시트에 📋 기초조사 메뉴가 없다면 이 프로그램의 예전 버전으로 설치한 시트입니다. 이번 한 번만 Apps Script에 새 설치
-            코드를 붙여넣고 저장한 뒤 <b>배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포</b>를 누르세요. 다음부터는
-            메뉴로 바꿀 수 있습니다.
+            시트에 📋 기초조사 메뉴가 없다면 이 프로그램의 예전 버전으로 설치한 시트입니다. 이번 한 번만 Apps Script에
+            새 설치 코드를 붙여넣고 저장한 뒤 <b>배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포</b>를 누르세요.
+            다음부터는 메뉴로 바꿀 수 있습니다.
           </div>
         </div>
       )}
@@ -12753,8 +12820,8 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
       {method === "template" ? (
         <div>
           <InstallCheckItem no={1} done={checks.t1} onToggle={() => toggle("t1")} title="템플릿 시트 사본 만들기">
-            조사에 쓸 구글 계정으로 로그인한 상태에서 아래 버튼을 누르고 <b>[사본 만들기]</b>를 누릅니다. 만들어진 시트 이름을
-            알아보기 쉽게 바꿔 두세요. (예: 2025 입학생 기초조사 응답)
+            조사에 쓸 구글 계정으로 로그인한 상태에서 아래 버튼을 누르고 <b>[사본 만들기]</b>를 누릅니다. 만들어진 시트
+            이름을 알아보기 쉽게 바꿔 두세요. (예: 2025 입학생 기초조사 응답)
             <div style={{ marginTop: 6 }}>
               <a
                 href={copyUrl}
@@ -12766,9 +12833,15 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
               </a>
             </div>
           </InstallCheckItem>
-          <InstallCheckItem no={2} done={checks.t5} onToggle={() => toggle("t5")} title="Apps Script API 켜기 (계정마다 처음 한 번)">
-            아래 버튼으로 구글 설정 화면을 열고 <b>Google Apps Script API</b> 옆 스위치를 눌러 <b>‘사용’</b>으로 바꿉니다. 이
-            스위치가 켜져 있어야 시트 메뉴 버튼 하나로 학생용 주소를 만들 수 있습니다. 전에 켠 적이 있으면 건너뛰세요.
+          <InstallCheckItem
+            no={2}
+            done={checks.t5}
+            onToggle={() => toggle("t5")}
+            title="Apps Script API 켜기 (계정마다 처음 한 번)"
+          >
+            아래 버튼으로 구글 설정 화면을 열고 <b>Google Apps Script API</b> 옆 스위치를 눌러 <b>‘사용’</b>으로
+            바꿉니다. 이 스위치가 켜져 있어야 시트 메뉴 버튼 하나로 학생용 주소를 만들 수 있습니다. 전에 켠 적이 있으면
+            건너뛰세요.
             <div style={{ marginTop: 6 }}>
               <a
                 href="https://script.google.com/home/usersettings"
@@ -12783,7 +12856,14 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
               <img
                 src={appsScriptApiOnImg}
                 alt="Google Apps Script API 설정 화면: 사용 스위치가 켜진 모습"
-                style={{ display: "block", width: "100%", maxWidth: 520, height: "auto", border: `1px solid ${LINE}`, borderRadius: 8 }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  maxWidth: 520,
+                  height: "auto",
+                  border: `1px solid ${LINE}`,
+                  borderRadius: 8,
+                }}
               />
               <figcaption style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>
                 ‘Google Apps Script API’를 누른 뒤 ‘사용’ 스위치가 이렇게 파랗게 켜지면 됩니다.
@@ -12796,15 +12876,16 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
                 <b>[설정 코드 복사]</b>를 누릅니다.
               </li>
               <li style={li}>
-                사본 시트 위 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>를 열어 Ctrl+V로 붙여넣고 <b>[저장]</b>합니다. 메뉴는 시트가
-                열리고 몇 초 뒤에 생깁니다. 안 보이면 새로고침하세요.
+                사본 시트 위 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>를 열어 Ctrl+V로 붙여넣고 <b>[저장]</b>합니다.
+                메뉴는 시트가 열리고 몇 초 뒤에 생깁니다. 안 보이면 새로고침하세요.
               </li>
               <li style={li}>
-                같은 창에 나오는 <b>[다음: 학생용 주소 만들기]</b>를 누르고, 나온 주소를 <b>[주소 복사]</b>해서 아래 5번 칸에
-                붙여넣습니다.
+                같은 창에 나오는 <b>[다음: 학생용 주소 만들기]</b>를 누르고, 나온 주소를 <b>[주소 복사]</b>해서 아래 5번
+                칸에 붙여넣습니다.
               </li>
             </ol>
-            처음 한 번은 ‘승인 필요’ 창이 뜹니다 → <b>[계속]</b> → 내 계정 선택 → 권한 <b>허용</b>.
+            처음 한 번은 ‘승인 필요’ 창이 뜹니다 → <b>[계속]</b> → 내 계정 선택 → ‘확인하지 않은 앱’ 화면에서{" "}
+            <b>[고급]</b> → <b>(프로젝트 이름)(으)로 이동</b> → <b>[허용]</b>. (아래 그림)
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
               {copyConfigButton}
               {copyNote("config")}
@@ -12816,10 +12897,11 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
                 [학생용 주소 만들기]가 안 될 때 (학교 계정 등): 직접 배포하기
               </summary>
               <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.65, marginTop: 4 }}>
-                사본 시트 위 메뉴 <b>[확장 프로그램 → Apps Script]</b>를 누르면 편집기가 열립니다. 코드는 이미 들어 있으니
-                고치지 마세요.
+                사본 시트 위 메뉴 <b>[확장 프로그램 → Apps Script]</b>를 누르면 편집기가 열립니다. 코드는 이미 들어
+                있으니 고치지 마세요.
                 {deployText}
-                배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec)을 복사해 아래 5번 칸에 붙여넣습니다.
+                배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec)을 복사해 아래 5번 칸에
+                붙여넣습니다.
               </div>
             </details>
           </InstallCheckItem>
@@ -12875,11 +12957,13 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
           </InstallCheckItem>
           <InstallCheckItem no={4} done={checks.c4} onToggle={() => toggle("c4")} title="웹 앱으로 배포하기">
             {deployText}
-            처음 한 번은 <b>[액세스 승인]</b> → 내 계정 선택 → 권한 <b>허용</b> 화면이 이어집니다.
+            처음 한 번은 <b>[액세스 승인]</b> → 내 계정 선택 → ‘확인하지 않은 앱’ 화면에서 <b>[고급]</b> →{" "}
+            <b>(프로젝트 이름)(으)로 이동</b> → <b>[허용]</b> 순서로 이어집니다. (아래 그림)
             {authNote}
           </InstallCheckItem>
           <InstallCheckItem no={5} done={checks.c5} onToggle={() => toggle("c5")} title="웹 앱 주소 복사하기">
-            배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec) 옆 [복사]를 눌러, 아래 5번 칸에 붙여넣습니다.
+            배포가 끝나면 나오는 <b>웹 앱 URL</b>(https://script.google.com/…/exec) 옆 [복사]를 눌러, 아래 5번 칸에
+            붙여넣습니다.
           </InstallCheckItem>
           {!stale && (
             <div style={{ fontSize: 12.3, color: MUTED, lineHeight: 1.6, margin: "4px 0 8px" }}>
@@ -12897,28 +12981,30 @@ function SurveyInstallStep({ payload, problems, config, setConfig }) {
       <div style={{ marginTop: 6 }}>
         <SurveyHelpItem title="학교(교육청) 구글 계정이라 ‘모든 사용자’가 목록에 없어요">
           학교 구글 워크스페이스 계정은 관리자 설정 때문에 ‘모든 사용자’를 고를 수 없을 수 있습니다. 이때는{" "}
-          <b>‘(학교 도메인) 내 모든 사용자’</b>로 배포하고, 학생들이 <b>학교 구글 계정으로 로그인한 휴대폰</b>에서 QR 코드를
-          열게 안내하세요. 학생이 개인 계정만 쓴다면 개인 구글 계정으로 시트를 만들어 설치하는 편이 쉽습니다.
+          <b>‘(학교 도메인) 내 모든 사용자’</b>로 배포하고, 학생들이 <b>학교 구글 계정으로 로그인한 휴대폰</b>에서 QR
+          코드를 열게 안내하세요. 학생이 개인 계정만 쓴다면 개인 구글 계정으로 시트를 만들어 설치하는 편이 쉽습니다.
         </SurveyHelpItem>
         <SurveyHelpItem title="[학생용 주소 만들기]에서 ‘Apps Script API가 꺼져 있습니다’가 나와요">
           <a href="https://script.google.com/home/usersettings" target="_blank" rel="noopener noreferrer">
             Apps Script API 설정
           </a>
-          에서 <b>Google Apps Script API</b>를 ‘사용’으로 바꾼 뒤, 1~2분 기다렸다가 창의 <b>[다시 시도]</b>를 누르세요. 스위치를 켠 구글
-          계정과 시트를 연 구글 계정이 같은지도 확인하세요. 학교 계정에서 계속 막히면 관리자가 막아 둔 것이니 ‘직접 배포하기’를
-          따라 하세요.
+          에서 <b>Google Apps Script API</b>를 ‘사용’으로 바꾼 뒤, 1~2분 기다렸다가 창의 <b>[다시 시도]</b>를 누르세요.
+          스위치를 켠 구글 계정과 시트를 연 구글 계정이 같은지도 확인하세요. 학교 계정에서 계속 막히면 관리자가 막아 둔
+          것이니 ‘직접 배포하기’를 따라 하세요.
         </SurveyHelpItem>
         <SurveyHelpItem title="학생이 QR 코드로 열었더니 구글 로그인 화면이 나와요">
           배포할 때 ‘액세스 권한이 있는 사용자’를 <b>모든 사용자</b>로 하지 않은 경우입니다. Apps Script 편집기에서{" "}
-          <b>배포 → 배포 관리 → 연필(수정)</b>을 눌러 액세스를 ‘모든 사용자’로 바꾸고 <b>[배포]</b>하세요. 주소는 그대로입니다.
+          <b>배포 → 배포 관리 → 연필(수정)</b>을 눌러 액세스를 ‘모든 사용자’로 바꾸고 <b>[배포]</b>하세요. 주소는
+          그대로입니다.
         </SurveyHelpItem>
         <SurveyHelpItem title="학생 화면에 ‘아직 조사 준비 중이에요’가 나와요">
-          시트에 조사 설정이 아직 없습니다. <b>[설정 코드 복사]</b>를 누르고 시트 메뉴 <b>[📋 기초조사 → 설정 붙여넣기]</b>에
-          붙여넣어 저장하세요. 저장하면 바로 학생 화면이 열립니다.
+          시트에 조사 설정이 아직 없습니다. <b>[설정 코드 복사]</b>를 누르고 시트 메뉴{" "}
+          <b>[📋 기초조사 → 설정 붙여넣기]</b>에 붙여넣어 저장하세요. 저장하면 바로 학생 화면이 열립니다.
         </SurveyHelpItem>
         <SurveyHelpItem title="시트 위에 📋 기초조사 메뉴가 안 보여요">
-          시트를 연 뒤 몇 초 기다리거나 새로고침(F5)하세요. 코드를 방금 붙여넣었다면 시트 탭을 새로고침해야 메뉴가 생깁니다.
-          그래도 없으면 Apps Script 편집기에서 코드가 저장되었는지(파일 이름 옆에 저장 안 됨 표시가 없는지) 확인하세요.
+          시트를 연 뒤 몇 초 기다리거나 새로고침(F5)하세요. 코드를 방금 붙여넣었다면 시트 탭을 새로고침해야 메뉴가
+          생깁니다. 그래도 없으면 Apps Script 편집기에서 코드가 저장되었는지(파일 이름 옆에 저장 안 됨 표시가 없는지)
+          확인하세요.
         </SurveyHelpItem>
       </div>
     </SurveyStep>
